@@ -1,0 +1,1463 @@
+# Currently having a problem with class based resources and PowerCLI
+# Leaving this here until I have had a change to investigate.
+
+#Requires -Version 5.0
+
+# Would like to load all DSC resources classes from seperate files
+# but that doesn't appear to work
+# https://connect.microsoft.com/PowerShell/feedback/details/1191366/authoring-dsc-resources-doesnt-work-in-nested-ps1-files
+
+enum Ensure {
+    Absent
+    Present
+}
+
+[DscResource()]
+class VM {
+    #region Properties
+    [DscProperty(key)]
+    [string]$Name
+
+    [DscProperty(Mandatory)]
+    [Ensure]$Ensure = [Ensure]::Present
+
+    [DscProperty()]
+    [Alias('PowerOnAfterCreation')]
+    [bool]$PowerOn
+
+    [DscProperty(Mandatory)]
+    [string]$vCenter
+
+    [DscProperty(Mandatory)]
+    [pscredential]$vCenterCredentials
+
+    [DscProperty()]
+    [int]$TotalvCPU
+
+    [DscProperty()]
+    [int]$CoresPerSocket
+
+    [DscProperty()]
+    [int]$vRAM
+
+    [DscProperty()]
+    [string]$Disks
+
+    [DscProperty()]
+    [string]$Networks
+
+    [DscProperty()]
+    [string]$VMTemplate
+
+    [DscProperty()]
+    [string]$Folder = [string]::empty
+
+    [DscProperty()]
+    [string]$CustomizationSpec
+
+    [DscProperty(Mandatory)]
+    [pscredential]$GuestCredentials
+
+    [DscProperty()]
+    [pscredential]$IPAMCredentials
+
+    [DscProperty()]
+    [pscredential]$DomainJoinCredentials
+
+    [DscProperty()]
+    [string]$IPAMFqdn
+
+    [DscProperty()]
+    [string]$Datacenter
+
+    [DscProperty(Mandatory)]
+    [string]$InitialDatastore
+
+    [DscProperty(Mandatory)]
+    [string]$Cluster
+
+    [DscProperty()]
+    [string]$Provisioners
+
+    [DscProperty(NotConfigurable)]
+    [bool]$Exists
+
+    [DscProperty(NotConfigurable)]
+    [bool]$vCenterConnected
+    #endregion
+
+    [bool]Init() {
+		if (-Not $this.vCenterConnected) {
+			# Connect to vCenter
+            if ($null -ne (Get-Module -Name VMware.* -ListAvailable -ErrorAction SilentlyContinue -Verbose:$false)) {
+				Import-Module Vmware.VimAutomation.Sdk -Verbose:$false
+                Import-Module VMware.VimAutomation.Core -Verbose:$false
+                Import-Module VMware.VimAutomation.Vds -Verbose:$false
+			} else {
+				throw 'VMware PowerCLI modules do not appear to be installed on this system.'
+			}
+
+            try {
+				Write-Debug -Message "Trying to connect to $($this.vCenter)"
+                if (-not $this.vcenterConnected) {
+					Connect-VIServer -Server $this.vCenter -Credential $this.vCenterCredentials -Verbose:$false -Debug:$false -WarningAction SilentlyContinue
+                    $this.vCenterConnected = $true
+				} else {
+					Write-Debug 'Already connected to vCenter'
+				}
+
+                Write-Debug -Message "Connected to vCenter: $($this.vCenter)"
+                return $true
+            } catch {
+				Write-Error -Message 'Unable to connect to vCenter'
+                Write-Error -Message "$($_.InvocationInfo.ScriptName)($($_.InvocationInfo.ScriptLineNumber)): $($_.InvocationInfo.Line)"
+                Write-Error $_
+                return $false
+			}
+		} else {
+			return $true
+		}
+        return $false
+    }
+
+    [void]Teardown() {
+        Write-Debug -Message 'Disconnecting from vCenter'
+        Disconnect-VIServer -Server * -Force -Confirm:$false -Verbose:$false -Debug:$false
+        Remove-Module VMware.* -Force -Confirm:$false -Verbose:$false
+    }
+
+    [object]CreateVM() {
+        $VM = $null
+
+        try {
+            $continue = $true
+            $sdrs = $false
+
+            # Resolve VM template
+            $template = Get-Template -Name $this.VMTemplate -Verbose:$false | Select-Object -First 1
+            if ($template) { 
+                Write-Debug -Message "Template: $($template.Name)"
+            } else {
+                Write-Error -Message "Unable to resolve template $($this.VMTemplate)"
+                $continue = $false
+            }
+
+            # Resolve cluster
+            $clus = Get-Cluster -Name $this.Cluster -Verbose:$false -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($clus) { 
+                Write-Debug -Message "Cluster: $($clus.Name)"
+            } else {
+                $clus = Get-VMHost -Name $this.Cluster -Verbose:$false -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($clus) {
+                    Write-Debug -Message "VMHost: $($clus.Name)"
+                } else {
+                    Write-Error -Message "Unable to resolve cluster or VM Host [$($this.Cluster)]"
+                    $continue = $false
+                }
+            }
+
+            # Resolve datastore / datastore cluster
+            $datastore = Get-Datastore -Name $this.InitialDatastore -Verbose:$false -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($datastore) {
+                Write-Debug -Message "Datastore: $($datastore.Name)"
+            } else {
+                $datastore = Get-DatastoreCluster -Name $this.InitialDatastore -Verbose:$false -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($datastore) {
+                    $sdrs = $true
+                    Write-Debug -Message "Datastore cluster: $($this.InitialDatastore)"
+                } else {
+                    $continue = $false
+                }
+            }
+
+            # Resolve folder to put VM into
+            if ($this.Folder -ne [string]::Empty) {
+                $vmFolder = $this.GetVMFolderByPath()
+            } else {
+                $vmFolder = $null
+            }
+
+            # Verify any IP addresses defined in configuration are not already in use
+            # and resolve network portgroups
+            $netConfigs = @(ConvertFrom-Json -InputObject $this.NICSpec)
+            foreach ($netConfig in $netConfigs) {
+                # Verify the IP address(s) that we're about to set are not already in use
+                if ($netConfig.IPAddress) {
+                    $pingable = Test-Connection -ComputerName $netConfig.IPAddress -Count 2 -Quiet
+                    if ($pingable) {
+                        Write-Error -Message "$($netConfig.IPAddress) appears to already be in use."
+                        $continue = $false
+                    }
+                }
+
+                # Resolver port group
+                if ($null -eq (Get-VDPortGroup -Name $netConfig.PortGroup -ErrorAction SilentlyContinue -Verbose:$false -Debug:$false)) {
+                    if ($null -eq (Get-VirtualPortGroup -Name $netConfig.PortGroup -ErrorAction SilentlyContinue -Verbose:$false -Debug:$false)) {
+                        Write-Error -Message "Unable to resolve portgroup $($netConfig.PortGroup)"
+                        $continue = $false
+                    }
+                }
+            }
+
+            # Resolve OS customization spec
+            $custSpec = Get-OSCustomizationSpec -Name $this.CustomizationSpec -Type Persistent -Verbose:$false -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($null -eq $custSpec) {
+                Write-Error -Message "Unable to resolve OS customization spec $($this.CustomizationSpec)"
+                $continue = $false
+            }
+
+            # Do we have all the information we need to provision the VM?
+            if ($continue) {
+                Write-Verbose "Creating VM [$($this.Name)]"
+            
+                $firstDisk = (ConvertFrom-Json -InputObject $this.Disks -ErrorAction SilentlyContinue | Select-Object -First 1)
+                if ($firstDisk) {
+                    $diskFormat = $firstDisk.Format
+                } else {
+                    $diskFormat = 'thin'
+                }
+
+                # Create VM asynchronously and get task object
+                $t = $null
+                $params = @{
+                    Name = $this.Name
+                    Template = $template
+                    Datastore = $datastore
+                    #DiskStorageFormat = $diskFormat
+                    ResourcePool = $clus
+                    RunAsync = $true
+                    Verbose = $false
+                    Confirm = $false
+                }
+
+                # Only set the disk format if we're targeting a datastore and not a datacluster cluster.
+                # BUG IN PowerCLI
+                # TODO - Need to come up with a way around this
+                if (-not $sdrs) {
+                    $params.DiskStorageFormat = $diskFormat
+                }
+                if ($vmFolder) {
+                    $params.Location = $vmFolder
+                }
+                $t = New-VM @params
+
+                #if ($sdrs) {
+                #    $t = New-VM -Name $Name -Template $template -Datastore $datastore -ResourcePool $clus -RunAsync -Verbose:$false -Confirm:$false
+                #} else {
+                #    $t = New-VM -Name $Name -Template $template -Datastore $datastore -ResourcePool $clus -DiskStorageFormat $diskFormat -RunAsync -Verbose:$false -Confirm:$false
+                #}
+
+                # Wait for task to complete
+                while ($t.State.ToString().ToLower() -eq 'running') {
+                    Write-Verbose -Message 'Waiting for VM creation to complete...'
+                    Start-Sleep -Seconds 10
+                    $t = Get-Task -Id $t.Id -Verbose:$false -Debug:$false
+                }
+                $t = Get-Task -Id $t.Id -Verbose:$false -Debug:$false
+
+                if ($t.State.ToString().ToLower() -eq 'success') {
+                    #$vm = Get-VM -Id $t.Result.Vm -Verbose:$false -Debug:$false
+                    $vm = Get-VM -Name $this.Name -Verbose:$false -Debug:$false
+                }
+
+                if (-Not $VM) {
+                    Write-Error -Message 'VM failed to create'
+                }
+            } else {
+                Write-Error 'Could not resolve required VMware objects needed to create this VM.'
+            }
+        } catch {
+            Write-Error 'There was a problem creating the VM'
+            Write-Error "$($_.InvocationInfo.ScriptName)($($_.InvocationInfo.ScriptLineNumber)): $($_.InvocationInfo.Line)"
+            Write-Error $_
+            #return $null
+        }
+
+        return $VM
+    }
+
+    [pscustomobject[]]GetGuestDiskToVMDiskMapping($VM) {
+        try {
+            $vmView = $VM | Get-View -Verbose:$false -Debug:$false
+            $configDisks = ConvertFrom-Json -InputObject $this.Disks -Verbose:$false
+            $vmDisks = @($VM | Get-HardDisk -Verbose:$false -Debug:$false)
+
+            # Create our disk configuration objects that will be passed into the guest OS
+            # via VM tools. The Guest will then format the drives based on the instructions
+            $diskInstructions = @()
+            foreach ($scsiController in ($vmView.Config.Hardware.Device | Where-Object {$_.DeviceInfo.Label -match "SCSI Controller"})) {
+                foreach ($diskDevice in ($vmView.Config.Hardware.Device | Where-Object {$_.ControllerKey -eq $scsiController.Key})) {
+                        
+                    $disk = [pscustomobject]@{
+                        DiskName = $diskDevice.DeviceInfo.Label
+                        DiskSizeGB = $diskDevice.CapacityInKB / 1024 / 1024
+                        SCSIController = $scsiController.BusNumber
+                        SCSITarget = $diskDevice.UnitNumber
+                        VolumeName = $null
+                        VolumeLabel = $null
+                        BlockSize = $null
+                    }
+
+                    # Find matching disk from configuration
+                    $matchingDisk = @( $configDisks | Where-Object {$_.Name -eq $disk.DiskName} )
+
+                    #Shouldn't happen, but just in case..
+                    if ($matchingDisk.count -gt 1) {
+                        Write-Error -Message "Too many matches: $($matchingDisk | Select-Object Name, SizeGB, Type, Format | Out-String)"
+                    } elseif ($matchingDisk.count -eq 1) {
+                        $disk.VolumeName = $matchingDisk.VolumeName
+                        $disk.VolumeLabel = $matchingDisk.VolumeLabel
+                        $disk.BlockSize = $matchingDisk.BlockSize
+                    } else {
+                        Write-Error -Message 'VM has a disk that is not part of the configuration. Either add this disk to the configuratino or remove the disk from the VM.'
+                    }
+                    $diskInstructions += $disk
+                }
+            }
+            return $diskInstructions
+        } catch {
+            Write-Error -Message 'There was a problem getting the guest disk mapping'
+            Write-Error -Message "$($_.InvocationInfo.ScriptName)($($_.InvocationInfo.ScriptLineNumber)): $($_.InvocationInfo.Line)"
+            write-Error $_
+            return $null
+        }
+    }
+
+    [object]GetVMFolderByPath() {
+        <#
+        .SYNOPSIS  Retrieve folders by giving a path
+        .DESCRIPTION The function will retrieve a folder by it's
+            path. The path can contain any type of leave (folder or datacenter).
+        .NOTES  Author:  Luc Dekens
+        .PARAMETER Path
+            The path to the folder.
+            This is a required parameter.
+        .PARAMETER Path
+            The path to the folder.
+            This is a required parameter.
+        .PARAMETER Separator
+            The character that is used to separate the leaves in the
+            path. The default is '/'
+        .EXAMPLE
+            PS> Get-FolderByPath -Path "Folder1/Datacenter/Folder2"
+        .EXAMPLE
+            PS> Get-FolderByPath -Path "Folder1>Folder2" -Separator '>'
+        #> 
+        [char]$Separator = '/'
+        $f = $null
+
+        try {
+            $root = Get-Folder -Name Datacenters
+            $this.Folder.Split($Separator) | Foreach-Object {
+                $root = Get-Inventory -Name $_ -Location $root -NoRecursion
+                if ((Get-Inventory -Location $root -NoRecursion | Select-Object -ExpandProperty Name) -contains 'vm') {
+                    $root = Get-Inventory -Name 'vm' -Location $root -NoRecursion
+                }
+            }
+            $root | Where-Object {$_.GetType() -eq 'FolderImpl' } | Foreach-Object {
+                $f = Get-Folder -Name $_.Name -Location $root.Parent
+            }
+        } catch {
+            $f = $null
+        }
+
+        return $f
+    }
+
+    [void]RefreshHostStorageCache($VM) {
+        $session = $null
+        try {
+            $t = Get-VM -Id $VM.Id -Verbose:$false -Debug:$false
+            $ip = $t.Guest.IPAddress | Where-Object { ($_ -notlike '169.*') -and ( $_ -notlike '*:*') } | Select-Object -First 1
+
+            if ($ip -and $ip -ne [string]::Empty) {
+                $session = New-PSSession -ComputerName $ip -Credential $this.GuestCredentials -Verbose:$false
+
+                Write-Debug 'Refreshing disks on guest'
+                Invoke-Command -Session $session -ScriptBlock { Update-HostStorageCache } -Verbose:$false
+                Remove-PSSession -Session $session -ErrorAction SilentlyContinue
+            } else {
+                Write-Error -Message 'No valid IP address returned from VM view. Can not update guest storage cache'
+            }
+        } catch {
+            Remove-PSSession -Session $session -ErrorAction SilentlyContinue
+            Write-Error -Message 'There was a problem updating the guest storage cache'
+            Write-Error -Message "$($_.InvocationInfo.ScriptName)($($_.InvocationInfo.ScriptLineNumber)): $($_.InvocationInfo.Line)"
+            write-Error -Exception $_
+        }
+    }
+
+    [psobject]RequestInfoBloxIP([string]$Network) {
+        $IPInfo = $null
+        try {
+            Import-Module -Name 'InfoBlox' -Verbose:$false
+
+            Write-Debug "IPAM Server: $($this.IPAMFqdn)"
+            Write-Debug "IPAM Credentials [$($this.IPAMCredentials.Username)][$($this.IPAMCredentials.GetNetworkCredential().Password)]"
+
+            # Get subnet mask and gateway info from IPAM
+            Write-Debug "Getting network [$Network] from IPAM"
+            $netInfo = Get-IBNetwork -GridServer $this.IPAMFqdn -Credential $this.IPAMCredentials -Network $Network
+
+            # Get the next available IP from IPAM
+            Write-Debug "Requesting available IP for network [$Network] from IPAM"
+            $IPInfo = Request-IBAvailableIP -GridServer $this.IPAMFqdn -Credential $this.IPAMCredentials -Network $Network -Name $this.Name
+
+            if ($IPInfo) {
+                Write-Verbose -Message 'Received following IP informatin from IPAM:'
+                Write-Verbose -Message ($IPInfo | Format-List -Property * | Out-String)
+                $IPInfo | Add-Member -Type NoteProperty -Name 'Gateway' -Value $netInfo.gateway
+                $IPInfo | Add-Member -Type NoteProperty -Name 'SubnetMask' -Value $netInfo.subnetMask
+                return $IPInfo
+            } else {
+                Write-Warning -Message 'Unable to reserve IP in IPAM.'
+                return $null
+            }
+        } catch {
+            Write-Error -Message 'There was a problem setting the NIC mapping'
+            Write-Error -Message "$($_.InvocationInfo.ScriptName)($($_.InvocationInfo.ScriptLineNumber)): $($_.InvocationInfo.Line)"
+            Write-error $_
+            return $null
+        }
+    }
+
+    [void]SetGuestDisks($VM) {
+        $cim = $null
+        $session = $null
+        try { 
+            $mapping = $this.GetGuestDiskToVMDiskMapping($VM)
+
+            $t = Get-VM -Id $VM.Id -Verbose:$false -Debug:$false
+            $ip = $t.Guest.IPAddress | Where-Object { ($_ -notlike '169.*') -and ( $_ -notlike '*:*') } | Select-Object -First 1
+
+            if ($null -ne $ip -and $ip -ne [string]::Empty) {
+
+                # Let's do a sanity check first.
+                # Make sure we passed in valid values for the block size
+                # If we didn't, let's stop right here
+                $blockSizes = @(
+                    4096, 8192, 16386, 32768, 65536
+                )
+                $mapping | foreach {
+                    # Set default block size
+                    if ($_.BlockSize -eq $null) {
+                        $_.BlockSize = 4096
+                    }
+                    if ($blockSizes -notcontains $_.BlockSize) {
+                        Write-Error -Message 'Invalid block size passed in. Aborting configuration the disks'
+                        break
+                    }
+                }
+                
+                $cim = New-CimSession -ComputerName $ip -Credential $this.GuestCredentials -Verbose:$false
+                $session = New-PSSession -ComputerName $ip -Credential $this.GuestCredentials -Verbose:$false
+                $wmiDisks = Get-CimInstance -CimSession $cim -ClassName Win32_DiskDrive -Verbose:$false
+                #$disks = Get-Disk -CimSession $cim -Verbose:$false
+                $guestDisks = Invoke-Command -Session $session -ScriptBlock { Get-Disk } -Verbose:$false
+
+                # If the VM has a cdrom, mount it as 'Z:'
+                if (((Get-CimInstance -CimSession $cim -ClassName win32_cdromdrive -Verbose:$false) | Where-Object {$_.Caption -like "*vmware*"} | Select-Object -First 1).Drive -ne "Z:") {
+                    Write-Verbose -Message 'Changing CDROM to Z:'
+                    $cd = (Get-CimInstance -CimSession $cim -ClassName Win32_cdromdrive -Verbose:$false) | Where-Object {$_.Caption -like "*vmware*"}
+                    $oldLetter = $cd.Drive
+                    $cdVolume = Get-CimInstance -CimSession $cim -ClassName Win32_Volume -Filter "DriveLetter='$oldLetter'" -Verbose:$false
+                    Set-CimInstance -CimSession $cim -InputObject $cdVolume -Property @{DriveLetter='Z:'} -Verbose:$false
+                }
+
+                # Format each disk according to instructions
+                foreach ($config in $mapping) {
+                    $match = $wmiDisks | Where-Object {($_.SCSIBus -eq $config.SCSIController) -and ($_.SCSITargetId -eq $config.SCSITarget)} | Select-Object -First 1
+                    #write-host ($match | fl * | out-string)
+
+                    if ($null -ne $match) {
+                        $disk = $guestDisks | Where-Object {$_.SerialNumber -eq $match.SerialNumber} | select -first 1
+                        if ($null -ne $disk) {
+                            write-Debug -Message ($disk | fl * | out-string)
+                            Write-Debug -Message "Looking at disk $($disk.Number)"
+                            #Write-Verbose -Message "Configuring disk $($disk.Number)"
+
+                            # Online the disk
+                            if ($disk.IsOffline -eq $true) {
+                                Write-Debug -Message "Bringing disk [ $($disk.Number) ] online"
+                                #$disk | Set-Disk -CimSession $cim -IsOffline $false -Verbose:$false
+                                Invoke-Command -Session $session -ScriptBlock { $args[0] | Set-Disk -IsOffline $false } -ArgumentList $disk -Verbose:$false
+                            } else {
+                                Write-Debug -Message "Disk $($disk.Number) is already online"
+                            }
+
+                            if ($disk.PartitionStyle -eq 0) {
+                                Write-Verbose -Message "Initializing disk $($disk.Number)"
+                                #$disk | Initialize-Disk -CimSession $cim -PartitionStyle GPT -Verbose:$false -PassThru |
+                                #New-Partition -CimSession $cim -DriveLetter $config.VolumeName -UseMaximumSize -Verbose:$false |
+                                #Format-Volume -CimSession $cim -FileSystem NTFS -NewFileSystemLabel $config.VolumeLabel -AllocationUnitSize $config.BlockSize –Force -Verbose:$false -Confirm:$false | Out-Null
+                                $cmd = {
+                                    $args[0] | Initialize-Disk -PartitionStyle GPT -Verbose:$false -PassThru |
+                                        New-Partition -DriveLetter $args[1] -UseMaximumSize -Verbose:$false |
+                                        Format-Volume -FileSystem NTFS -NewFileSystemLabel $args[2] -AllocationUnitSize $args[3] -Force -Verbose:$false -Confirm:$false | Out-Null
+                                }
+                                Invoke-Command -Session $session -ScriptBlock $cmd -ArgumentList @($disk, $config.VolumeName, $config.VolumeLabel, $config.BlockSize ) -Verbose:$false
+                            } else {
+                                #$result = @($disk | Get-Partition -CimSession $cim -Verbose:$false | Where-Object {$_.Type -ne 'Reserved' -and $_.IsSystem -eq $false})
+                                $result = Invoke-Command -Session $session -ScriptBlock { @($args[0] | Get-Partition | Where-Object {$_.Type -ne 'Reserved' -and $_.IsSystem -eq $false}) } -ArgumentList $disk
+                                if ( $result.Count -eq 0) {
+                                    #$disk | New-Partition -CimSession $cim -DriveLetter $config.VolumeName -UseMaximumSize -Verbose:$false |
+                                    #Format-Volume -CimSession $cim -FileSystem NTFS -NewFileSystemLabel $config.VolumeLabel -AllocationUnitSize $config.BlockSize –Force -Verbose:$false -Confirm:$false | Out-Null
+                                    $cmd = {
+                                        $args[0] | New-Partition -DriveLetter $args[1] -UseMaximumSize |
+                                            Format-Volume -FileSystem NTFS -NewFileSystemLabel $args[2] -AllocationUnitSize $args[3] -Force -Verbose:$false -Confirm:$false | Out-Null
+                                    }
+                                    Invoke-Command -Session $session -ScriptBlock $cmd -ArgumentList @($disk, $config.VolumeName, $config.VolumeLabel, $config.BlockSize) -Verbose:$false 
+                                }
+                            }
+                        } else {
+                            Write-Verbose -Message 'Could not find matching disk'
+                        }
+                    } else {
+                        Write-Verbose -Message "Could not find disk $($config.SCSIController):$($config.SCSITarget)"
+                    }
+                }
+
+                # Compare the formated guest volumes with the mapping configuration
+                # if the matching volume from the mapping has a size greater
+                # than what exists, then extend the volume to match the configuration
+                # BIG ASSUMPTION
+                # There is only one volume per disk
+                $wmiDisks = Get-CimInstance -CimSession $cim -ClassName Win32_DiskDrive -Verbose:$false
+                #$formatedDisks = Get-Disk -CimSession $cim -Verbose:$false | Where-Object {$_.PartitionStyle -ne 'Raw'}
+                $formatedDisks = Invoke-Command -Session $session -ScriptBlock { Get-Disk | Where-Object {$_.PartitionStyle -ne 'Raw'} }
+                foreach ($config in $mapping) {
+                    $match = $wmiDisks | Where-Object {($_.SCSIBus -eq $config.SCSIController) -and ($_.SCSITargetId -eq $config.SCSITarget)} | select -First 1
+                    if ($null -ne $match) {
+                        $disk = $formatedDisks | Where-Object {$_.SerialNumber -eq $match.SerialNumber} | Select-Object -first 1
+                        if ($null -ne $disk) {
+                            Write-Debug -Message "Looking at disk $($disk.Number)"
+                            #$partition = $disk | Get-Partition -CimSession $cim -Verbose:$false | Where-Object {$_.Type -ne 'Reserved' -and $_.IsSystem -eq $false} | Select-Object -First 1
+                            $partition = Invoke-Command -Session $session -ScriptBlock { $args[0] | Get-Partition | Where-Object {$_.Type -ne 'Reserved' -and $_.IsSystem -eq $false} | Select-Object -First 1 } -ArgumentList $disk -Verbose:$false 
+                            #$sizes = $partition | Get-PartitionSupportedSize -CimSession $cim -Verbose:$false | Select-Object -Last 1
+                            $sizes = Invoke-Command -Session $session -ScriptBlock { $args[0] | Get-PartitionSupportedSize | Select-Object -Last 1 } -ArgumentList $partition -Verbose:$false
+                            # The max partition size is greater than the current partition size
+
+                            Write-Debug -Message "Partition size: $($partition.Size)"
+                            Write-Debug -Message "Paritition max size: $($sizes.SizeMax)"
+                            if ( [math]::round($partition.Size / 1GB) -lt [math]::round($sizes.SizeMax / 1GB)) {
+                                Write-Verbose -Message "Resisizing disk $($partition.DiskNumber) partition $($partition.PartitionNumber) to $($config.DiskSizeGB) GB"
+                                #$partition | Resize-Partition -CimSession $cim -Confirm:$false -Size $sizes.SizeMax -Verbose:$false
+                                Invoke-Command -Session $session -ScriptBlock { $args[0] | Resize-Partition -Confirm:$false -Size $args[1] } -ArgumentList @($partition, $sizes.SizeMax) -Verbose:$false 
+                            }
+                        
+                            #$volume = $partition | Get-Volume -CimSession $cim -Verbose:$false
+                            $volume = Invoke-Command -Session $session -ScriptBlock { $args[0] | Get-Volume } -ArgumentList $partition -Verbose:$false
+                            
+                            # Drive letter
+                            if ($Volume.DriveLetter -ne $config.VolumeName) {
+                                Write-Debug -Message "Setting drive letter to [$($config.VolumeName) ]"
+                                #$partition | Set-Partition -CimSession $cim -NewDriveLetter $config.VolumeName -Verbose:$false
+                                Invoke-Command -Session $session -ScriptBlock { $args[0] | Set-Partition -NewDriveLetter $args[1] } -ArgumentList @($partition, $config.VolumeName) -Verbose:$false
+                            }
+
+                            # Volume label
+                            if ($Volume.FileSystemLabel -ne $config.VolumeLabel) {
+                                Write-Debug -Message "Setting volume to [$($config.VolumeLabel) ]"
+                                $vol = Get-CimInstance -CimSession $cim -ClassName Win32_LogicalDisk -Filter "deviceid='$($Volume.DriveLetter):'" -Verbose:$false
+                                $vol | Set-CimInstance -Property @{volumename=$config.VolumeLabel} -Verbose:$false
+                                #$volume | Set-Volume -CimSession $cim -NewFileSystemLabel $config.VolumeLabel -Verbose:$false 
+                            }
+                        }
+                    }
+                }
+                Remove-CimSession -CimSession $cim -ErrorAction SilentlyContinue
+                Remove-PSSession -Session $session -ErrorAction SilentlyContinue
+            } else {
+                Write-Error -Message 'No valid IP address returned from VM view. Can not test guest disks'
+            }  
+        } catch {
+            Write-Error -Message 'There was a problem configuring the guest disks'
+            Write-Error -Message "$($_.InvocationInfo.ScriptName)($($_.InvocationInfo.ScriptLineNumber)): $($_.InvocationInfo.Line)"
+            write-Error $_
+        } finally {
+            Remove-CimSession -CimSession $cim -ErrorAction SilentlyContinue
+            Remove-PSSession -Session $session -ErrorAction SilentlyContinue
+        }
+    }
+
+    [void]SetVMCPU($VM) {
+        [bool]$result = $false
+        $continue = $false
+
+        # If the VM is powered on, we must verify that CPU hotadd
+        # is enabled before we can increase the CPU count.    
+        if ($VM.PowerState -eq 'PoweredOn') {
+            # TODO
+            # Deal will powered on VMs and increasing CPU
+            Write-Error -Message 'Can not change vCPU while VM is powered on. This will be fixed in a later release.'
+            $continue = $false
+        } else {
+            $continue = $true
+        }
+
+        if ($continue) {
+            # It is safe to change the CPU count while powered off
+            $spec = New-Object -TypeName Vmware.Vim.VirtualMachineConfigSpec -Property @{
+                "NumCoresPerSocket" = $this.CoresPerSocket
+                "NumCPUs" = $this.TotalvCPU
+            }
+
+            $task = $null
+            if ($this.CoresPerSocket -ne 0) {
+                $sockets = $this.TotalvCPU / $this.CoresPerSocket
+                Write-Verbose -Message "Changing $($VM.Name) vCPU to $($this.TotalvCPU) ($($sockets):$($this.CoresPerSocket))"
+                $task = $vm.extensiondata.reconfigvm_task($spec)
+            } else {
+                throw 'CoresPerSocket can not be 0'
+            }
+
+            # Wait for the task to complete
+            $done = $false
+            $maxWait = 36 # 3 minutes
+            $x = 0
+            if ($null -ne $task) {
+                while (!$done -or ($x -le $maxWait)) {
+                    $taskResult = Get-Task -Id ('Task-' + $task.value) -Verbose:$false
+                    if ($taskResult.State.ToString().ToLower() -eq 'success') {
+                        $done = $true
+                        $result = $true
+                    } else {
+                        Start-Sleep -Seconds 5 -Verbose:$false
+                    }
+                    $x += 1
+                }
+            }
+        }
+    }
+
+    [void]SetVMDisks($VM) {
+        $configDisks = ConvertFrom-Json -InputObject $this.Disks -Verbose:$false
+        $vmDisks = @($VM | Get-HardDisk -Verbose:$false)
+        Write-Debug -Message "Configuration disk count: $($configDisks.Count)"
+        Write-Debug -Message "VM disk count: $($vmDisks.Count)"
+
+        $changed = $false
+        foreach ($disk in $configDisks) {
+
+            $vmDisk = $vmDisks | Where-Object {$_.Name.ToLower() -eq $disk.Name.ToLower() }
+
+            # Add VM disk
+            if ($vmDisk -eq $null) {
+                try {
+                    $datastore = $VM | Get-Datastore -Verbose:$false | Select-Object -first 1
+                    Write-Verbose -Message "Creating disk [$($disk.Name) - $($disk.SizeGB) GB] on datastore [$($datastore.Name)]"
+                    New-Harddisk -VM $VM -CapacityGB $disk.SizeGB -DiskType $disk.Type -StorageFormat $disk.format -Datastore $datastore -Verbose:$false -Confirm:$false
+                    $changed = $true
+                } catch {
+                    Write-Error -Message 'There was a problem creating the disk.'
+                    Write-Error -Message "$($_.InvocationInfo.ScriptName)($($_.InvocationInfo.ScriptLineNumber)): $($_.InvocationInfo.Line)"
+                    Write-Error -Exception $_
+                }
+            } else {
+                # Resize VM disk
+                if ($vmDisk.CapacityGB -lt $disk.SizeGB) {
+                    Write-Verbose "Resizing disk [$($vmDisk.Name) to $($disk.SizeGB) GB"
+                    $vmDisk | Set-Harddisk -CapacityGB $disk.SizeGB -Verbose:$false -Confirm:$false
+                    $changed = $true
+                }
+            }
+        }
+    }
+
+    [void]SetVMNICs($VM) {
+        $success = $false
+        $specClone = $null
+
+        $netConfigs = @(ConvertFrom-Json -InputObject $this.Networks)
+        Write-Debug "Configuration NIC count: $($netConfigs.count)"
+
+        $vmNICs = @($VM | Get-NetworkAdapter -Verbose:$false -Debug:$false)
+        Write-Debug "VM NIC count: $($vmNICs.Count)"
+
+        # Assign each vNIC to the appropriate port group
+        $num = 1
+
+        foreach ($netConfig in $netConfigs) {
+            $vmNIC = $vmNICs[$num-1]
+            try {
+                if ($vmNIC -ne $null) {
+                    Write-Debug "Setting NIC $num to port group [$($netConfig.PortGroup)]"
+                    $x = Set-NetworkAdapter -NetworkAdapter $vmnic -NetworkName $netConfig.PortGroup -Verbose:$false -Confirm:$false
+                    $x = $x | Set-NetworkAdapter -StartConnected:$true -Verbose:$false -Confirm:$false
+                } else {
+                    Write-Debug "Adding new NIC for port group [$($netConfig.PortGroup)]"
+                    $x = New-NetworkAdapter -VM $vm -Type Vmxnet3 -NetworkName $netConfig.PortGroup -Verbose:$false -Confirm:$false
+                    $x = $x | Set-NetworkAdapter -StartConnected:$true -Verbose:$false -Confirm:$false
+                }
+            } catch {
+                Write-error 'There was a problem setting or creating the NIC'
+                Write-error "$($_.InvocationInfo.ScriptName)($($_.InvocationInfo.ScriptLineNumber)): $($_.InvocationInfo.Line)"
+                Write-error $_
+            }
+            $num += 1
+        }
+        $vm = Get-VM $VM -Verbose:$false -Debug:$false
+
+        # Create a non-persistent clone of the customization spec
+        $spec = Get-OSCustomizationSpec -Name $this.CustomizationSpec -Type Persistent -Verbose:$false | Select-Object -First 1
+        Write-Debug -Message "Customization spec: $($spec.Name)"
+        if ($spec -ne $null) {
+
+            # Remove any non-persistant clones that may have been left behind
+            Write-Debug -Message 'Removing any orphaned specs'
+            $oldSpecs = Get-OSCustomizationSpec -Type NonPersistent -Name $spec.Name -Verbose:$false -ErrorAction SilentlyContinue
+            if ($oldSpecs) {
+                $oldSpecs | Remove-OSCustomizationSpec -Confirm:$false
+            }
+
+            Write-Debug -Message 'Cloning customization spec'
+            $specClone = New-OSCustomizationSpec -Spec $spec -Type NonPersistent -Verbose:$false
+        } else {
+            Write-Warning -Message "Customization spec [$($this.CustomizationSpec)] not found."
+        }
+
+        if ($specClone) {
+
+            # Remove any NIC mappings from the spec
+            $nicMapping = Get-OSCustomizationNicMapping -OSCustomizationSpec $specClone -Verbose:$false
+            Remove-OSCustomizationNicMapping -OSCustomizationNicMapping $nicMapping -Verbose:$false -Confirm:$false
+            $nicMapping = Get-OSCustomizationNicMapping -OSCustomizationSpec $specClone -Verbose:$false 
+        
+            $vmNICs = @($VM | Get-NetworkAdapter -Verbose:$false)
+        
+            $num = 1
+            foreach ($netConfig in $netConfigs) {
+                Write-Debug -Message ($netConfig | Format-List -Property * | Out-String)
+                Write-Verbose -Message "Configuring NIC $num"
+                $vmNIC = $vmNICs[$num-1]
+
+                # Set NIC customizations
+                switch ($netConfig.IPAssignment) {
+                    'Static' {
+                        # Create a NIC mapping
+                        try {
+                            Write-Verbose -Message "Setting static IP [$($netConfig.IPAddress)] for NIC $num"
+
+                            $params = @{
+                                OSCustomizationSpec = $specClone
+                                IpMode = 'UseStaticIp'
+                                IpAddress = $netConfig.IPAddress
+                                SubnetMask = $netConfig.SubnetMask
+                                DefaultGateway = $netConfig.DefaultGateway
+                                Dns = $netConfig.DNSServers
+                                Verbose = $false
+                            }
+                            if ($vmNIC -ne $null) {
+                                $params.NetworkAdapterMac = $vmNic.MacAddress
+                            }
+                            New-OSCustomizationNicMapping @params
+                            $success = $true
+                        } catch {
+                            Write-Error -Message 'There was a problem setting the NIC to static'
+                            Write-Error -Message "$($_.InvocationInfo.ScriptName)($($_.InvocationInfo.ScriptLineNumber)): $($_.InvocationInfo.Line)"
+                            Write-error $_
+                        }
+                    }
+                    'DHCP' {
+                        try {
+                            Write-Verbose -Message "Setting DHCP for NIC $num"
+                            if ($vmNIC -ne $null) {
+                                New-OSCustomizationNicMapping -OSCustomizationSpec $specClone -IpMode UseDhcp -Verbose:$false
+                            } else {
+                                New-OSCustomizationNicMapping -OSCustomizationSpec $specClone -IpMode UseDhcp -NetworkAdapterMac $vmNIC.MacAddress -Verbose:$false
+                            }
+                            #Set-VM -VM $vm -OSCustomizationSpec $specClone -Confirm:$false
+                            #Remove-OSCustomizationSpec -OSCustomizationSpec $specClone -Confirm:$false
+                            $success = $true
+                        } catch {
+                            Write-Error -Message 'There was a problem setting the NIC to DHCP'
+                            Write-Error -Message "$($_.InvocationInfo.ScriptName)($($_.InvocationInfo.ScriptLineNumber)): $($_.InvocationInfo.Line)"
+                            Write-error $_
+                        }
+                    }
+                    'IPAMNextAvailable' {
+                        try {
+                            $IPInfo = $this.RequestInfoBloxIP($netConfig.Network)
+
+                            # Create NIC mapping with IP info
+                            if ($IPInfo) {
+                                Write-Verbose -Message "Setting IPAM assigned static IP [$($IPInfo.ipv4addr)] for NIC $num"
+
+                                $params = @{
+                                    OSCustomizationSpec = $specClone
+                                    IpMode = 'UseStaticIp'
+                                    IpAddress = $IPInfo.ipv4addr 
+                                    SubnetMask = $IPInfo.subnetMask
+                                    DefaultGateway = $IPInfo.gateway 
+                                    Dns = $netConfig.DNSServers
+                                }
+                                Write-Verbose -Message ($params | fl * | out-string)
+
+                                if ($vmNIC -ne $null) {
+                                    $params.NetworkAdapterMac = $vmNIC.MacAddress
+                                }
+                                New-OSCustomizationNicMapping @params -Verbose:$false
+                                $success = $true
+                            } else {
+                                Write-Error -Message 'Failed to resolve required network information IPAM'
+                            }
+                        } catch {
+                            $success = $false
+                            Write-Error -Message 'There was a problem setting the NIC mapping'
+                            Write-Error -Message "$($_.InvocationInfo.ScriptName)($($_.InvocationInfo.ScriptLineNumber)): $($_.InvocationInfo.Line)"
+                            Write-error $_
+                        }
+                    }
+                    Default {
+                        try {
+                            Write-Warning -Message "No valid network configuration found in config. Defaulting to DHCP."
+                            Write-Verbose -Message "Setting DHCP for NIC $num"
+                            $nicMapping | New-OSCustomizationNicMapping -IpMode UseDhcp -Verbose:$false
+                            $success = $true
+                        } catch {
+                            $success = $false
+                            Write-Error -Message 'There was a problem setting the NIC mapping'
+                            Write-Error -Message "$($_.InvocationInfo.ScriptName)($($_.InvocationInfo.ScriptLineNumber)): $($_.InvocationInfo.Line)"
+                            Write-error $_
+                        }
+                    }
+                }
+                $num += 1
+            }
+            
+            # Apply the NIC customizations
+            if ($specClone) {
+                Write-Debug -Message 'Applying VM customization spec...'
+          
+                try {
+                    # Verify the IP address(s) that we're about to set are not already in use
+                    $ips = Get-OSCustomizationNicMapping -OSCustomizationSpec $specClone -Verbose:$false
+                    foreach ($mapping in $ips) {
+                        $pingable = Test-Connection -ComputerName $mapping.IPAddress -Count 2 -Quiet
+                        if ($pingable) {
+                            throw "$($mapping.IPAddress) appears to already be in use. Failed to set this IP."
+                        }
+                    }
+
+                    # Refresh our VM object as we may have added / modified NICs
+                    $VM = Get-VM $VM -Verbose:$false -Debug:$false
+
+                    Set-VM -VM $VM -OSCustomizationSpec $specClone -Verbose:$false -Confirm:$false
+                } catch {
+                    Write-Error -Message 'Failed to set OS customization spec'
+                    Write-Error -Message "$($_.InvocationInfo.ScriptName)($($_.InvocationInfo.ScriptLineNumber)): $($_.InvocationInfo.Line)"
+                    Write-error $_
+                }
+            }
+        } else {
+            Write-Error -Message 'Unable to configue NICs without a valid customization spec'
+            $success = $false
+        }
+    }
+
+    [void]SetVMPowerState($VM) {
+        if ( $this.PowerOn -and $VM.PowerState -eq 'PoweredOn') {
+            # Do nothing
+        } else {
+            try {
+                Write-Verbose -Message 'Powering on VM'
+                Start-VM -VM $VM -Verbose:$false -Debug:$false
+            } catch {
+                Write-Warning -Message 'VM failed to power on'
+            }
+        }
+    }
+
+    [void]SetVMRAM($VM) {
+        if ($VM.MemoryGB -ne $this.vRAM) {
+            $continue = $false
+
+            # If VM is powered on, make sure we are increasing the RAM
+            # TODO ADD check for hotadd
+            if (($VM.PowerState -eq 'PoweredOn')) {
+                # Are we increasing vRAM?
+                if ($VM.MemoryGB -lt $this.vRAM) {
+                    $continue = $true
+                } else {
+                    Write-Error 'Cannot decrease vRAM while VM is powered on'
+                }
+            } else {
+                $continue = $true
+            }
+
+            # Set RAM if determined safe to do so
+            if ($continue -eq $true) {
+                try {
+                    Write-Verbose -Message "Changing $($VM.Name) vRAM to $($this.vRAM)"
+                    Set-VM -VM $VM -MemoryGB $this.vRAM -Confirm:$false -Verbose:$false
+                } catch {
+                    Write-Error -Message 'Failed to set vRAM'
+                }
+            }
+        }
+    }
+
+    [bool]TestGuestDisks($VM) {
+        $pass = $true
+
+        $cim = $null
+        $session = $null
+
+        try {
+            $mapping = $this.GetGuestDiskToVMDiskMapping($VM)
+
+            $t = Get-VM -Id $VM.Id -Verbose:$false -Debug:$false
+            $ip = $t.Guest.IPAddress | Where-Object { ($_ -notlike '169.*') -and ( $_ -notlike '*:*') } | Select-Object -First 1
+
+            if ($ip -and $ip -ne [string]::Empty) {
+            
+                $cim = New-CimSession -ComputerName $ip -Credential $this.GuestCredentials -Verbose:$false
+                $session = New-PSSession -ComputerName $ip -Credential $this.GuestCredentials -Verbose:$false
+                $wmiDisks = Get-CimInstance -CimSession $cim -ClassName Win32_DiskDrive -Verbose:$false
+            
+                $guestDisks = Invoke-Command -Session $session -ScriptBlock { Get-Disk }
+                #$disks = Get-Disk -CimSession $cim -Verbose:$false
+
+                # Compare the mapping to what is configured
+                foreach($config in $mapping) {
+                
+                    # Does this config exist?
+                    $wmiMatch = $wmiDisks | Where-Object {($_.SCSIBus -eq $config.SCSIController) -and ($_.SCSITargetId -eq $config.SCSITarget)} | Select-Object -First 1
+
+                    if ($null -ne $wmiMatch) {
+                    
+                        $disk = $guestDisks | Where-Object {$_.SerialNumber -eq $wmiMatch.SerialNumber} | Select-Object -First 1
+
+                        if ($null -ne $disk) {
+
+                            Write-Debug -Message "Testing guest disk configuration [$($config.DiskName)]"
+
+                            $diskSize = $disk.Size / 1GB
+
+                            #$partition = $disk | Get-Partition -CimSession $cim -Verbose:$false | Where-Object {$_.Type -ne 'Reserved' -and $_.IsSystem -eq $false} | Select-Object -First 1
+                            $partition = Invoke-Command -Session $session -ScriptBlock { 
+                                $args[0] | 
+                                    Get-Partition -Verbose:$false | 
+                                    Where-Object {$_.Type -ne 'Reserved' -and $_.Type -ne 'Unknown' -and $_.IsSystem -eq $false} | 
+                                    Select-Object -Last 1 
+                            } -ArgumentList $disk
+
+                            if ($null -ne $partition) {
+                                $sizes = Invoke-Command -Session $session -ScriptBlock { 
+                                    $args[0] | Get-PartitionSupportedSize 
+                                } -ArgumentList $partition
+
+                                # The max partition size is greater than the current partition size
+                                if ( [math]::round($partition.Size / 1GB) -lt [math]::round($sizes.SizeMax / 1GB)) {
+                                    $partSize = [Math]::Round($partition.Size / 1GB)
+                                    Write-Verbose -Message "Disk $($disk.Number) does not match configuration: $partSize GB <> $($config.DiskSizeGB) GB"
+                                    $pass = $false
+                                }
+
+                                $volume = Invoke-Command -Session $session -ScriptBlock { 
+                                    $args[0] | 
+                                        Get-Volume -Verbose:$false |
+                                        Select-Object -last 1
+                                } -ArgumentList $partition
+                            
+                                # Drive letter
+                                if ($volume.DriveLetter -ne $config.VolumeName) {
+                                    Write-Verbose -Message "Volume [ $($volume.DriveLetter) ] does not match configuration [ $($config.VolumeName) ]"
+                                    $pass = $false
+                                }
+
+                                # Volume label
+                                if ($volume.FileSystemLabel -ne $config.VolumeLabel) {
+                                    Write-Verbose -Message "Volume label [ $($Volume.FileSystemLabel) ] does not match configuration [ $($config.VolumeLabel) ]"
+                                    $pass = $false
+                                }
+                            } else {
+                                Write-Verbose -Message "Could not find partition for disk $($config.SCSIController):$($config.SCSITarget)"
+                                $pass = $false
+                            }
+                        } else {
+                            Write-Verbose -Message 'Could not find matching disk'
+                            $pass = $false
+                        }
+                    } else {
+                        Write-Verbose -Message "Could not find disk $($config.SCSIController):$($config.SCSITarget)"
+                        $pass = $false
+                    }
+                }
+                Remove-CimSession -CimSession $cim -ErrorAction SilentlyContinue
+                Remove-PSSession -Session $session -ErrorAction SilentlyContinue
+            } else {
+                Write-Error -Message 'No valid IP address returned from VM view. Can not test guest disks'
+                $pass = $true
+            }
+            return $pass
+        } catch {
+            Write-Error -Message 'There was a problem testing the guest disks'
+            Write-Error -Message "$($_.InvocationInfo.ScriptName)($($_.InvocationInfo.ScriptLineNumber)): $($_.InvocationInfo.Line)"
+            write-Error -Exception $_
+        } finally {
+            Remove-CimSession -CimSession $cim -ErrorAction SilentlyContinue
+            Remove-PSSession -Session $session -ErrorAction SilentlyContinue
+        }
+
+        return $pass
+    }
+
+    [bool]TestVMCPU($VM) {
+        # VM matches CPU
+        if (($VM.extensiondata.config.hardware.numcpu -ne $this.TotalvCPU) -or 
+             ($VM.extensiondata.config.hardware.numcorespersocket -ne $this.CoresPerSocket)) {
+            return $false
+        } else {
+            return $true
+        }
+    }
+
+    [bool]TestVMDisks($VM) {
+        try {
+            $configDisks = ConvertFrom-Json -InputObject $this.Disks -Verbose:$false
+            $vmDisks = @($VM | Get-HardDisk -Verbose:$false -Debug:$false)
+            Write-Debug -Message "Configuration disk count: $(@($configDisks).Count)"
+            Write-Debug -Message "VM disk count: $(@($vmDisks).Count)"
+
+            if ( @($configDisks).Count -ne @($vmDisks).Count) {
+                Write-Verbose -Message 'Disk count does not match configuration'
+                $pass = $false
+                return $pass
+            }
+
+            foreach ($disk in $configDisks) {
+                Write-Debug -Message "Validating VM disk [$($disk.Name)]"
+
+                $vmDisk = $vmDisks | Where-Object {$_.Name.ToLower() -eq $disk.Name.ToLower() }
+                if ($null -eq $vmDisk) {
+                    Write-Verbose -Message "Disk [$($disk.Name)] does not exist on VM"
+                    return $false
+                }
+
+                $vmDiskCap = [system.math]::round($vmDisk.CapacityGB, 0)
+                if ($vmDiskCap -ne $disk.SizeGB) {
+                    Write-Verbose -Message "Disk [$($disk.Name)] does not match configured size"
+                    return $false
+                }
+
+                $vmDiskStorageFormat = ''
+                if ($null -ne $vmDisk.StorageFormat) {
+                    $vmDiskStorageFormat = $vmDisk.StorageFormat
+                }
+                $diskStorageFormat = ''
+                if ($null -ne $disk.Format) {
+                    $diskStorageFormat = $disk.Format
+                }
+                if ($vmDiskStorageFormat.ToString().ToLower() -ne $diskStorageFormat.ToLower()) {
+                    Write-Verbose -Message "Disk [$($disk.Name)] does not match configured format"
+                    return $false
+                }
+
+                if ($vmDisk.DiskType.ToString().ToLower() -ne $disk.Type.ToLower()) {
+                    Write-Verbose -Message "Disk [$($disk.Name)] does not match configured type"
+                    return $false
+                }
+            }
+            return $true
+        } catch {
+            Write-Error -Message 'There was a problem testing the disks.'
+            Write-Error -Message "$($_.InvocationInfo.ScriptName)($($_.InvocationInfo.ScriptLineNumber)): $($_.InvocationInfo.Line)"
+            Write-Error $_
+            return $false
+        }
+    }
+
+    [bool]TestVMNIC() {
+        # TODO - Test NIC configuration
+        return $true
+    }
+
+    [bool]TestVMPowerState($VM) {
+        return (($this.PowerOn) -and ($VM.PowerState -eq 'PoweredOn'))
+    }
+
+    [bool]TestVMRAM($VM) {
+        # VM matches memory
+        if ($VM.MemoryGB -ne $this.vRAM) {
+            return $false
+        } else {
+            return $true
+        }
+    }
+
+    [bool]WaitForVMTools($VM) {
+        [int]$toolsTimeout = 20
+        [int]$ipTImeout = 20
+
+        $result = Wait-Tools -VM $VM -TimeoutSeconds (60 * $toolsTimeout) -Verbose:$false
+    
+        if ($result) {
+            Write-Verbose -Message 'VM tools started'
+            Write-Verbose -Message 'Waiting for VM to become available...'
+            $sw = [diagnostics.stopwatch]::StartNew()
+            while ($sw.elapsed.minutes -lt $ipTimeout){
+                $vmView = $VM | Get-View -Verbose:$false
+                if ($vmView.Guest.IpAddress -and $vmView.Guest.IpAddress -notlike '169.*') {
+                    $p = Invoke-Command -ComputerName $vmView.Guest.IpAddress -Credential $this.vCenterCredentials -ScriptBlock { Get-Process } -ErrorAction SilentlyContinue
+                    if ($p) {
+                        break
+                    }
+                }
+                Start-Sleep -Seconds 5
+            }
+            return $true
+        } else {
+            Write-Error -Message 'VM tools did not start withing the alloted time'
+        }
+        return $false
+    }
+
+    [bool]WaitForGuestCustomization($VM) {
+        [int]$timeout = 15
+
+        # Wait until VM has started
+        Write-Verbose -Message  'Waiting for VM to start...'
+        $sw = [diagnostics.stopwatch]::StartNew()
+        while ($sw.elapsed.minutes -lt $timeout){
+            $vmEvents = Get-VIEvent -Entity $VM -Verbose:$false 
+            $startedEvent = $vmEvents | Where-Object { $_.GetType().Name -eq "VMStartingEvent" }
+
+            if ($startedEvent) {
+                break
+            }
+            else {
+                Start-Sleep -Seconds 5
+            }	
+        }
+        $sw.stop()
+        $sw.reset()
+ 
+        # Wait until customization process has started	
+        Write-Verbose -Message 'Waiting for customization to start...'
+        $sw.start()
+        while ($sw.elapsed.minutes -lt $timeout){
+            $vmEvents = Get-VIEvent -Entity $VM -Verbose:$false 
+            $startedEvent = $vmEvents | Where-Object { $_.GetType().Name -eq "CustomizationStartedEvent" }
+ 
+            if ($startedEvent) {
+                break
+            }
+            else {
+                Start-Sleep -Seconds 5
+            }
+        }
+        $sw.stop()
+        $sw.reset()
+ 
+        # wait until customization process has completed or failed
+        Write-Verbose -Message 'Waiting for customization to finish...'
+        $sw.start()
+        $success = $false
+        while ($sw.elapsed.minutes -lt $timeout){
+            $vmEvents = Get-VIEvent -Entity $VM -Verbose:$false
+            $succeedEvent = $vmEvents | Where-Object { $_.GetType().Name -eq "CustomizationSucceeded" }
+            $failEvent = $vmEvents | Where-Object { $_.GetType().Name -eq "CustomizationFailed" }
+ 
+            if ($failEvent) {
+                Write-Error -Message 'Customization failed!'
+                $success = $false
+            }
+ 
+            if($succeedEvent) {
+                Write-Verbose -Message 'Customization succeeded'
+                $success = $true
+            }
+ 
+            Start-Sleep -Seconds 5
+        }
+
+        if ($success) {
+            # Wait 5 minutes to allow VM to come up fully
+            Write-Verbose -Message 'Waiting 3 minutes...'
+            Start-Sleep -Seconds 180
+            return $true
+        } else {
+            return $false
+        }
+    }
+
+    [VM]Get() {
+        $this.Init()
+        $obj = $null
+        
+        try {
+            Write-Verbose -Message "Getting VM: $($this.Name)"
+            $VM = Get-VM -Name $this.Name -Verbose:$false -ErrorAction SilentlyContinue | Select-Object -First 1
+
+            if ($VM) {
+                $obj = [VM]::new()
+                $obj.Name = $VM.Name
+                $obj.PowerOn = $VM.PowerState.ToString() -eq 'PowerdOn'
+                $obj.vCenterCredentials = $this.vCenterCredentials
+                $obj.TotalvCPU = $VM.NumCpu
+                $obj.CoresPerSocket = $VM.ExtensionData.Config.Hardware.NumCoresPerSocket
+                $obj.vRAM = [int]$VM.MemoryGB
+                $obj.Disks = $this.Disks
+                $obj.Networks = $this.Networks
+                $obj.VMTemplate = $this.VMTemplate
+                $obj.Folder = $this.Folder
+                $obj.CustomizationSpec = $this.CustomizationSpec
+                $obj.GuestCredentials = $this.GuestCredentials
+                $obj.IPAMCredentials = $this.IPAMCredentials
+                $obj.DomainJoinCredentials = $this.DomainJoinCredentials
+                $obj.IPAMFqdn = $this.IPAMFqdn
+                $obj.vCenter = $this.vCenter
+                $obj.Datacenter = $this.Datacenter
+                $obj.InitialDatastore = $this.InitialDatastore
+                $obj.Cluster = $this.Cluster
+                $obj.Provisioners = $this.Provisioners
+                $obj.Exists = $true
+                #return $obj
+            } else {
+                Write-Verbose -Message 'VM not found'
+            }
+        } catch {
+            Write-Error 'There was a problem getting the resource'
+            Write-Error "$($_.InvocationInfo.ScriptName)($($_.InvocationInfo.ScriptLineNumber)): $($_.InvocationInfo.Line)"
+            Write-Error $_
+        }
+        
+        $this.Teardown()
+        return $obj
+    }
+
+    [void]Set() {
+        $this.Init()
+        $newVM = $false
+        $updatedVMDisks = $false
+
+        try {
+            $VM = Get-VM -Name $this.Name -verbose:$false -ErrorAction SilentlyContinue | select -First 1
+            switch ($this.Ensure) {
+                'Present' {
+                    # Create the VM if needed
+                    if ($null -eq $VM) {
+                        $VM = $this.CreateVM()
+                        if ($VM) {
+                            Write-Verbose -Message 'VM created successfully'
+                            $newVm = $true
+                        } else {
+                            Write-Warning -Message 'VM not created'
+                        }
+
+                        # Set NICs
+                        $setNICResult = $false
+
+                        $this.SetVMNICs($VM)
+
+                        #if ($setNICResult -eq $false) {
+                        #    throw 'Failed to set NICs after VM creation. Aborting...'
+                        #}
+                    }
+
+                    # Set RAM
+                    if (-not $this.TestVMRAM($VM)) { 
+                        $this.SetVMRAM($VM)
+                    }
+
+                    # Set vCPU
+                    if (-not $this.TestVMCPU($VM)) {
+                        $this.SetVMCPU($VM)
+                    }
+
+                    # Set disks
+                    if (-not $this.TestVMDisks($VM)) {
+                        $this.SetVMDisks($VM)
+                    }
+
+                    # Power on VM and wait for OS customization to complete
+                    if (-not $this.TestVMPowerState($VM)) { 
+                        _SetVMPowerState -vm $vm
+
+                        # Wait for OS customization to complete if this is a newly created VM
+                        if ($newVM -eq $true) {
+                            $this.WaitForGuestCustomization($VM)
+                        }
+
+                        $this.WaitForVMTools($VM)
+                    }
+
+                    if ($updatedVMDisks -eq $true) {
+                        $this.RefreshHostStorageCache($VM)
+                    }
+
+                    # Set guest disks
+                    if (-not $this.TestGuestDisks($VM)) {
+                        $this.SetGuestDisks($VM)
+                    }
+
+                    # Run any provisioners
+                    if ($this.Provisioners -ne [string]::Empty) {
+                        foreach ($p in (ConvertFrom-Json -InputObject $this.Provisioners)) {
+                            $testPath = "$PSScriptRoot\Provisioners\$($p.name)\Test.ps1"
+                            if (Test-Path -Path $testPath) {
+                                $params = $PSBoundParameters
+                                $params.vm = $VM
+                                $provisionerResult = (& $testPath $params)
+                                if ($provisionerResult -ne $true) {
+                                    $provPath = "$PSScriptRoot\Provisioners\$($p.name)\Provision.ps1"
+                                    if (Test-Path -Path $testPath) {
+                                        $params = $PSBoundParameters
+                                        $params.vm = $VM
+                                        (& $provPath $params)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                'Absent' {
+                    Write-Verbose -Message '[Ensure == Absent] Beginning deprovisioning process'
+
+                    # Run through any provisioners we have defined and execute the 'deprovision' script
+                    if ($this.Provisioners -ne [string]::Empty) {
+                        foreach ($p in (ConvertFrom-Json -InputObject $this.Provisioners)) {
+                            $testPath = "$PSScriptRoot\Provisioners\$($p.Name)\Test.ps1"
+                            if (Test-Path -Path $testPath) {
+                                # This is a hack.
+                                # Classes do not support $PSBoundParameters
+                                $params = @{
+                                    vm = $VM
+                                    options = @{
+                                        Provisioners = $this.Provisioners
+                                    }
+                                }
+                                $provisionerResult = (& $testPath $params)
+                                if ($provisionerResult -eq $true) {
+                                    $provPath = "$PSScriptRoot\Provisioners\$($p.name)\Deprovision.ps1"
+                                    if (Test-Path -Path $testPath) {
+                                        & $provPath $params
+                                    }
+                                }
+                            } else {
+                                Write-Error -Message "Provioner [$($p.Name)] not found"
+                            }
+                        }
+                    }
+
+                    # Stop and delete VM
+                    if ($VM) {
+                        try {
+                            Write-Verbose -Message 'Stopping VM'
+                            $stopResult = $VM | Stop-VM -Confirm:$false -Verbose:$false
+                            Write-Verbose -Message 'VM stopped'
+                            if ($stopResult.PowerState -eq 'PoweredOff') {
+                                $delResult = $stopResult | Remove-VM -DeletePermanently -Confirm:$false -Verbose:$false
+                                Write-Verbose -Message 'VM deleted'
+                            } else {
+                                throw 'Unable to stop VM'
+                            }
+                        } catch {
+                            throw $_
+                        }
+                    }
+                }
+            }
+        } catch {
+            Write-Error 'There was a problem setting the resource'
+            Write-Error "$($_.InvocationInfo.ScriptName)($($_.InvocationInfo.ScriptLineNumber)): $($_.InvocationInfo.Line)"
+            Write-Error $_
+        }
+
+        $this.Teardown()
+    }
+
+    [bool]Test() {
+        $this.Init()
+        $pass = $true
+        try {
+            $VM = Get-VM -Name $this.Name -verbose:$false -ErrorAction SilentlyContinue | select -First 1
+            switch ($this.Ensure) {
+                'Present' {
+                    if ($VM) {
+                        # Run through tests
+
+                        # RAM
+                        if (-Not $this.TestVMRAM($VM)) {
+                            Write-Verbose -Message "RAM allocatino does not match [Spec:$($this.vRAM), VM:$([int]$VM.MemoryGB)]"
+                            $pass = $false
+                        }
+
+                        # CPU
+                        if (-Not $this.TestVMCPU($VM)) {
+                            Write-Verbose -Message 'vCPU allocation does not match'
+                            $pass = $false
+                        }
+
+                        # Disks
+                        if (-Not $this.TestVMDisks($VM)) {
+                            Write-Verbose -Message "VM disk configuratino does not match"
+                            $pass = $false
+                        }
+
+                        # Guest disks
+                        $this.RefreshHostStorageCache($VM)
+                        if (-Not $this.TestGuestDisks($VM)) {
+                            Write-Verbose -Message 'Guest disk configuration does not match'
+                            $pass = $false
+                        }
+
+                        # NICS
+                        # TODO
+
+                        # Power State
+                        if (-Not $this.TestVMPowerState($VM)) {
+                            Write-Verbose -Message 'VM should be powered on'
+                            $pass = $false
+                        }
+
+                        # Test provisioners
+                        if ($this.Provisioners -and $this.Provisioners -ne [string]::Empty) {
+                            foreach ($p in (ConvertFrom-Json -InputObject $this.Provisioners)) {
+                                $provPath = "$PSScriptRoot\Provisioners\$($p.name)\Test.ps1"
+                                if (Test-Path -Path $provPath) {
+
+                                    # This is a hack.
+                                    # Classes do not support $PSBoundParameters
+                                    $params = @{
+                                        vm = $VM
+                                        options = @{
+                                            Provisioners = $this.Provisioners
+                                        }
+                                    }
+                                    #$params = $PSBoundParameters
+                                    #$params.vm = $vm
+                                    $provisionerPassed = (& $provPath $params)
+                                    if (-not $provisionerPassed) {
+                                        $pass = $false
+                                    }
+                                } else {
+                                    Write-Error -Message "Provioner [$($p.name)] not found"
+                                }
+                            }
+                        }
+                        #return $true
+                    } else {
+                        Write-Verbose -Message 'VM does not exist but should'
+                        $pass = $false
+                    }
+                }
+                'Absent' {
+                    if ($VM) {
+                        Write-Verbose -Message 'VM exists but should not'
+                        $pass = $false
+                    } else {
+                        $pass = $true
+                    }
+                }
+            }
+        } catch {
+            Write-Error 'There was a problem testing the resource'
+            Write-Error "$($_.InvocationInfo.ScriptName)($($_.InvocationInfo.ScriptLineNumber)): $($_.InvocationInfo.Line)"
+            Write-Error $_
+        }
+        $this.Teardown()
+        return $pass
+    }
+}

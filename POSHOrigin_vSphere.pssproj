@@ -26,11 +26,63 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
-  <ItemGroup />
   <ItemGroup>
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Helpers\_ConnectTovCenter.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Helpers\_CreateVM.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Helpers\_GetGuestDiskToVMDiskMapping.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Helpers\_GetVMFolderByPath.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Helpers\_GetVMFolderPath.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Helpers\_refreshHostStorageCache.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Helpers\_RequestInfoBloxIP.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Helpers\_SetGuestDisks.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Helpers\_SetVMCPU.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Helpers\_SetVMDisks.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Helpers\_SetVMNICs.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Helpers\_SetVMPowerState.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Helpers\_SetVMRAM.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Helpers\_TestChefClient.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Helpers\_TestGuestDisks.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Helpers\_TestVMCPU.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Helpers\_TestVMDiskCount.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Helpers\_TestVMDisks.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Helpers\_TestVMNICs.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Helpers\_TestVMPowerState.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Helpers\_TestVMRAM.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Helpers\_WaitForGuestCustomization.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Helpers\_WaitForVMTools.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\POSHOrigin_vSphere_VM.psm1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\POSHOrigin_vSphere_VM.schema.mof" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Provisioners\Chef\Deprovision.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Provisioners\Chef\helpers\_GetBase64.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Provisioners\Chef\helpers\_GetChecksum.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Provisioners\Chef\helpers\_GetKeyPairFromPem.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Provisioners\Chef\helpers\_InitializeBouncyCastle.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Provisioners\Chef\helpers\_InvokeChefQuery.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Provisioners\Chef\helpers\_InvokeChefRestMethod.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Provisioners\Chef\helpers\_InvokeEncrypt.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Provisioners\Chef\helpers\_SetHeaders.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Provisioners\Chef\Provision.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Provisioners\Chef\Test.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Provisioners\DomainJoin\Deprovision.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Provisioners\DomainJoin\Provision.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Provisioners\DomainJoin\Test.ps1" />
+    <Compile Include="DSCResources\POSHOrigin_vSphere_VM\Invoke.ps1" />
+    <Compile Include="Invoke.ps1" />
     <Compile Include="POSHOrigin_vSphere.psd1" />
     <Compile Include="POSHOrigin_vSphere.psm1" />
-    <Compile Include="POSHOrigin_vSphere.tests.ps1" />
+    <Compile Include="POSHOrigin_vSphere.psm1.bad" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="DSCResources\" />
+    <Folder Include="DSCResources\POSHOrigin_vSphere_VM\" />
+    <Folder Include="DSCResources\POSHOrigin_vSphere_VM\Helpers\" />
+    <Folder Include="DSCResources\POSHOrigin_vSphere_VM\Provisioners\" />
+    <Folder Include="DSCResources\POSHOrigin_vSphere_VM\Provisioners\Chef\" />
+    <Folder Include="DSCResources\POSHOrigin_vSphere_VM\Provisioners\Chef\helpers\" />
+    <Folder Include="DSCResources\POSHOrigin_vSphere_VM\Provisioners\DomainJoin\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="DSCResources\POSHOrigin_vSphere_VM\Provisioners\Chef\helpers\BouncyCastle.Crypto.dll" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <Target Name="Build" />
