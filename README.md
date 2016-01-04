@@ -45,7 +45,7 @@ Parameters
 This example shows how to use the **VM** resource within the context of a [POSHOrigin](https://github.com/devblackops/POSHOrigin) configuration file.
 
 ```PowerShell
-resource 'vsphere:vm' 'VM01' @{
+resource 'POSHOrigin_vSphere:VM' 'VM01' @{
     ensure = 'present'
     description = 'Test VM'
     vCenter = 'vcenter01.local'
@@ -77,23 +77,15 @@ resource 'vsphere:vm' 'VM01' @{
             blockSize = 4096
         }
     )
-    secrets = @{
-        vCenter = @{
-            resolver = 'pscredential'
-            options = @{
-                username = '<your vcenter username>'
-                password = '<your password here>'
-            }
-        }
-        guest = @{
-            resolver = 'pscredential'
-            options = @{
-                username = 'administrator'
-                password = '<your password here>'
-            }
-        }
+    vCenterCredentials = Get-POSHOriginSecret 'pscredential' @{
+        username = '<your vcenter username>'
+        password = '<your password here>'
     }
-    Provisioners = @(
+    guestCredentials = Get-POSHOriginSecret 'pscredential' @{
+        username = '<your vcenter username>'
+        password = '<your password here>'
+    }
+    provisioners = @(
         @{
             name = 'DomainJoin'
             options = @{
