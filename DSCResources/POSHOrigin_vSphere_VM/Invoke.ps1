@@ -90,7 +90,9 @@ switch ($type) {
 
             return $hash
         } else {
-            $confName = "$type" + '_' + $Options.Name
+            # Dashes (-) are not allowed in DSC configurations names
+            $itemName = $Options.Name.Replace('-', '_')
+            $confName = "$type" + '_' + $itemName
             Write-Verbose -Message "Returning configuration function for resource: $confName"
             Configuration $confName {
                 Param (
@@ -107,12 +109,51 @@ switch ($type) {
                 if (-Not $provJson) {
                     $provJson = [string]::empty
                 }
+
+                $vc = $null
+                $gc = $null
+                $dj = $null
+                $ipam = $null
+                $ipamfqdn = $null
+
+                # Credentials may be specified in line. Test for that
+                if ($Options.Options.vCenterCredentials -is [pscredential]) {
+                    $vc = $Options.Options.vCenterCredentials
+                }
+                if ($Options.Options.GuestCredentials -is [pscredential]) {
+                    $gc = $Options.Options.GuestCredentials
+                }
+                if ($Options.Options.DomainJoinCredentials -is [pscredential]) {
+                    $dj = $Options.Options.DomainJoinCredentials
+                }
+                if ($Options.Options.IPAMCredentials -is [pscredential]) {
+                    $ipam = $Options.Options.IPAMCredentials
+                }
+                if ($Options.Options.IPAMFqdn -is [string]) {
+                    $ipamfqdn = $Options.Options.IPAMFqdn
+                }
+
+                # Credentials may be listed under secrets. Test for that
+                if ($Options.options.secrets.vCenter) {
+                    $vc = $Options.options.secrets.vCenter.credential
+                }
+                if ($Options.options.secrets.guest) {
+                    $gc = $Options.options.secrets.guest.credential
+                }
+                if ($Options.options.secrets.domainJoin) {
+                    $dj = $Options.options.secrets.domainJoin.credential
+                }
+                if ($Options.options.secrets.ipam) {
+                    $ipam = $Options.options.secrets.ipam.credential
+                    $ipamfqdn = $Options.options.secrets.ipam.options.fqdn
+                }
+
                 VM $ResourceOptions.Name {
                     Ensure = $ResourceOptions.options.Ensure
                     Name = $ResourceOptions.Name
                     PowerOnAfterCreation = $ResourceOptions.options.PowerOnAfterCreation
                     vCenter = $ResourceOptions.options.vCenter
-                    vCenterCredentials = $ResourceOptions.options.secrets.vCenter.credential
+                    vCenterCredentials = $vc
                     VMTemplate = $ResourceOptions.options.VMTemplate
                     TotalvCPU = $ResourceOptions.options.TotalvCPU
                     CoresPerSocket = $ResourceOptions.options.CoresPerSocket
@@ -122,10 +163,10 @@ switch ($type) {
                     InitialDatastore = $ResourceOptions.options.InitialDatastore
                     Disks = ConvertTo-Json -InputObject $ResourceOptions.options.disks
                     CustomizationSpec = $ResourceOptions.options.CustomizationSpec
-                    GuestCredentials = $ResourceOptions.options.secrets.guest.credential
-                    IPAMCredentials = $ResourceOptions.options.secrets.ipam.credential
-                    IPAMFqdn = $ResourceOptions.options.secrets.ipam.options.fqdn
-                    DomainJoinCredentials = $ResourceOptions.options.secrets.domainJoin.credential
+                    GuestCredentials = $gc
+                    IPAMCredentials = $ipam
+                    IPAMFqdn = $ipamfqdn
+                    DomainJoinCredentials = $dj
                     Networks = ConvertTo-Json -InputObject $ResourceOptions.options.networks
                     Provisioners = $provJson
                 }
