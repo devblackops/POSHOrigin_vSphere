@@ -13,14 +13,6 @@ param (
     $private
 )
 
-# determine if the path to the key specified in the configuration is an absolute URL 
-# or if not then build up the path relative to the module directory
-#if ([System.IO.Path]::IsPathRooted($script:session.config.$keyitem)) {
-#	$signing_key = $script:session.config.$keyitem
-#} else {
-#	$signing_key = "{0}\{1}" -f $script:session.config.paths.conf, $script:session.config.$keyitem
-#}
-
 & "$PSScriptRoot\_InitializeBouncyCastle.ps1"
 
 $keys = & "$PSScriptRoot\_GetKeyPairFromPem.ps1" -pem $pem
@@ -35,7 +27,7 @@ if ($keys -is [Org.BouncyCastle.Crypto.AsymmetricCipherKeyPair]) {
     } else {
         $engine.Init($true, $keys.Public)
     }
-} elseif ($keys -is [Org.BouncyCastle.Crypto.Parameters.RsaKeyParameters]) {	
+} elseif ($keys -is [Org.BouncyCastle.Crypto.Parameters.RsaKeyParameters]) {
     # only the public key has been passed so just add the key to initialise the engine
     $engine.Init($true, $keys)
 }

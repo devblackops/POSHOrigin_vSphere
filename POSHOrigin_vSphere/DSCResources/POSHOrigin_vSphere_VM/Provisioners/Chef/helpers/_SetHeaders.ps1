@@ -24,7 +24,7 @@ param (
     $useritem = "client",
 
     [Alias('KeyPath')]
-    [string]    
+    [string]
     $Key
 
     #[string]
@@ -57,14 +57,6 @@ $al.Add(("X-Ops-Timestamp:{0}" -f $timestamp)) | Out-Null
 $al.Add(("X-Ops-UserId:{0}" -f $useritem.trim())) | Out-Null
 
 $canonicalized_header = $al -join "`n"
-
-## Build up the path to the pem.  this might be an absolute path in which case use that
-#if ([System.IO.Path]::IsPathRooted($script:session.config.$keyitem)) {
-#		$pempath = $script:session.config.$keyitem
-#	} else {
-#		$pempath = Join-Path $script:session.config.paths.conf $script:session.config.$keyitem
-#	}
-#$pemPath = 'C:\Users\bolin\chef-repo\.chef\bolin.pem'
 
 $cipher = & "$PSScriptRoot\_InvokeEncrypt.ps1" -data $canonicalized_header -pem $Key -private
 

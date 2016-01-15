@@ -88,7 +88,7 @@ $splathash = @{uri = $uri.OriginalString
 # if the raw parameter has been specified then set the accept object
 if ($raw) {
     $splathash.accept = "*/*"
-}	
+}
 
 # Run the request against the chef server
 $response = & "$PSScriptRoot\_InvokeChefRestMethod.ps1" @splathash
@@ -99,10 +99,6 @@ if (200..204 -contains $response.statuscode) {
     # set the return value
     $return = $response.data
 
-    # if not raw then turn the response data into a hashtable
-    #if (!$raw -and ![String]::IsNullOrEmpty($return)) {
-    #    $return = _ConvertFromJsonToHashtable -InputObject $return
-    #}
     if (!$raw -and ![String]::IsNullOrEmpty($return)) {
         $return = ConvertFrom-Json -InputObject $return
     }
