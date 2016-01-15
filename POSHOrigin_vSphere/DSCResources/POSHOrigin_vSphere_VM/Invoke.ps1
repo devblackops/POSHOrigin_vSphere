@@ -99,6 +99,50 @@ switch ($type) {
 
                 Import-DscResource -Name VM -ModuleName POSHOrigin_vSphere
 
+                # Credentials may be specified in line. Test for that
+                if ($ResourceOptions.Options.vCenterCredentials -is [pscredential]) {
+                    $vcCred = $ResourceOptions.Options.vCenterCredentials
+                }
+                if ($ResourceOptions.Options.GuestCredentials -is [pscredential]) {
+                    $guestCred = $ResourceOptions.Options.GuestCredentials
+                }
+                if ($ResourceOptions.Options.IPAMCredentials -is [pscredential]) {
+                    $ipamCred = $ResourceOptions.Options.IPAMCredentials
+                }
+                if ($ResourceOptions.Options.DomainJoinCredentials -is [pscredential]) {
+                    $djCred = $ResourceOptions.Options.DomainJoinCredentials
+                }
+
+                # Credentials may be listed under secrets. Test for that
+                if ($ResourceOptions.options.secrets.vCenter -or $ResourceOptions.options.secrets.vCenterCredentials ) {
+                    if ($ResourceOptions.options.secrets.vCenter) {
+                        $vcCred = $ResourceOptions.options.secrets.vCenter.credential
+                    } else {
+                        $vcCred = $ResourceOptions.options.secrets.vCenterCredentials.credential
+                    }
+                }
+                if ($ResourceOptions.options.secrets.guest -or $ResourceOptions.options.secrets.GuestCredentials ) {
+                    if ($ResourceOptions.options.secrets.guest) {
+                        $guestCred = $ResourceOptions.options.secrets.guest.credential
+                    } else {
+                        $guestCred = $ResourceOptions.options.secrets.guestCredentials.credential
+                    }
+                }
+                if ($ResourceOptions.options.secrets.ipam -or $ResourceOptions.options.secrets.IPAMCredentials ) {
+                    if ($ResourceOptions.options.secrets.ipam) {
+                        $ipamCred = $ResourceOptions.options.secrets.ipam.credential
+                    } else {
+                        $ipamCred = $ResourceOptions.options.secrets.IPAMCredentials.credential
+                    }
+                }
+                if ($ResourceOptions.options.secrets.domainjoin -or $ResourceOptions.options.secrets.DomainJoinCredentials ) {
+                    if ($ResourceOptions.options.secrets.domainjoin) {
+                        $djCred = $ResourceOptions.options.secrets.domainjoin.credential
+                    } else {
+                        $djCred = $ResourceOptions.options.secrets.DomainJoinCredentials.credential
+                    }
+                }
+
                 $provJson = [string]::empty
                 if ($ResourceOptions.options.provisioners) {
                     $provJson = ConvertTo-Json -InputObject $ResourceOptions.options.provisioners -Depth 999
@@ -112,7 +156,7 @@ switch ($type) {
                     Name = $ResourceOptions.Name
                     PowerOnAfterCreation = $ResourceOptions.options.PowerOnAfterCreation
                     vCenter = $ResourceOptions.options.vCenter
-                    vCenterCredentials = $ResourceOptions.options.secrets.vCenter.credential
+                    vCenterCredentials = $vcCred
                     VMTemplate = $ResourceOptions.options.VMTemplate
                     TotalvCPU = $ResourceOptions.options.TotalvCPU
                     CoresPerSocket = $ResourceOptions.options.CoresPerSocket
@@ -122,10 +166,10 @@ switch ($type) {
                     InitialDatastore = $ResourceOptions.options.InitialDatastore
                     Disks = ConvertTo-Json -InputObject $ResourceOptions.options.disks
                     CustomizationSpec = $ResourceOptions.options.CustomizationSpec
-                    GuestCredentials = $ResourceOptions.options.secrets.guest.credential
-                    IPAMCredentials = $ResourceOptions.options.secrets.ipam.credential
+                    GuestCredentials = $guestCred
+                    IPAMCredentials = $ipamCred
                     IPAMFqdn = $ResourceOptions.options.secrets.ipam.options.fqdn
-                    DomainJoinCredentials = $ResourceOptions.options.secrets.domainJoin.credential
+                    DomainJoinCredentials = $djCred
                     Networks = ConvertTo-Json -InputObject $ResourceOptions.options.networks
                     Provisioners = $provJson
                 }

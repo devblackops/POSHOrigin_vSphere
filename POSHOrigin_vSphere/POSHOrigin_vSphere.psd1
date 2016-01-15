@@ -4,7 +4,7 @@
 RootModule = 'POSHOrigin_vSphere.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.1.2'
+ModuleVersion = '1.1.3'
 
 # ID used to uniquely identify this module
 GUID = 'af4099cf-30a1-44eb-8c74-a10948245227'
