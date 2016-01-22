@@ -90,7 +90,8 @@ switch ($type) {
 
             return $hash
         } else {
-            $confName = "$type" + '_' + $Options.Name
+            $configName = $Options.Name.Replace('-', '')
+            $confName = "$type" + '_' + $configName
             Write-Verbose -Message "Returning configuration function for resource: $confName"
             Configuration $confName {
                 Param (
