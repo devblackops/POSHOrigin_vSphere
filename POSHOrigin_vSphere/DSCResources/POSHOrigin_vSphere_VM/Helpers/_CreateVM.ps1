@@ -76,7 +76,7 @@ function _CreateVM {
                 Write-Debug -Message "Datastore cluster: $InitialDatastore"
             } else {
                 $continue = $false
-            }            
+            }
         }
 
         # Resolve folder to put VM into
@@ -169,7 +169,8 @@ function _CreateVM {
 
             # Wait for task to complete
             while ($t.State.ToString().ToLower() -eq 'running') {
-                Write-Verbose -Message 'Waiting for VM creation to complete...'
+
+                Write-Verbose -Message "VM creation $($t.PercentComplete)% complete"
                 Start-Sleep -Seconds 10
                 $t = Get-Task -Id $t.Id -Verbose:$false -Debug:$false
             }
@@ -181,10 +182,10 @@ function _CreateVM {
             }
                     
             if ($null -eq $vm) {
-                throw 'VM failed to create.'
+                throw 'VM failed to create'
             }
         } else {
-            Write-Error 'Could not resolve required VMware objects needed to create this VM.'
+            Write-Error 'Could not resolve required VMware objects needed to create this VM'
         }
     } catch {
         Write-Error 'There was a problem creating the VM'
