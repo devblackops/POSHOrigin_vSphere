@@ -18,7 +18,7 @@ process {
         $ip = $t.Guest.IPAddress | Where-Object { ($_ -notlike '169.*') -and ( $_ -notlike '*:*') } | Select-Object -First 1
         if ($null -ne $ip -and $ip -ne [string]::Empty) {
             $cmd = {
-                $VerbosePreference = 'Continue'
+                $VerbosePreference = $Using:VerbosePreference
                 try {
                     $options = $args[0]
                     $provOptions = $args[1].options

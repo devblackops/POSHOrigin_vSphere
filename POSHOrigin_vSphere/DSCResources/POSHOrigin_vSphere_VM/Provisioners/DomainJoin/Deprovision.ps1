@@ -16,12 +16,14 @@ process {
     $t = Get-VM -Id $Options.vm.Id -Verbose:$false -Debug:$false
     $ip = $t.Guest.IPAddress | Where-Object { ($_ -notlike '169.*') -and ( $_ -notlike '*:*') } | Select-Object -First 1
     if ($null -ne $ip -and $ip -ne [string]::Empty) {
+
         $cmd = {
             try {
                 $params = @{
                     UnJoinDomainCredential = $args[0]
                     WorkgroupName = 'WORKGROUP'
                     Force = $true
+                    Verbose = $false
                 }
                 Write-Verbose -Message "Removing computer from domain [$($args[1])]"
                 Remove-Computer @params | Out-Null

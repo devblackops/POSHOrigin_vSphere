@@ -20,17 +20,42 @@ process {
             $VerbosePreference = 'Continue'
             try {
                 $params = @{
-                    Credential = $args[0]
+                    DomainCredential = $args[0]
                     DomainName = $args[1]
                     Force = $true
-                    Restart = $true
                 }
                 if ($null -ne $args[2]) { $params.OUPath = $args[2] }
                 $str = $params | ConvertTo-Json
                 Write-Debug -Message "DomainJoin options:`n$str"
                 Write-Verbose -Message "Joining domain [$($args[1])]"
-                Add-Computer @params | Out-Null
+                Add-Computer @params -ErrorAction SilentlyContinue | Out-Null
+                $params.Remove('OUPath')
+                $params.Restart = $true
+                Add-Computer @params -ErrorAction SilentlyContinue | Out-Null
                 return $true
+
+                ## WMI Method
+                #$djAccount = $args[0]
+                #$domain = $args[1]
+                #if ($null -ne $args[2]) { $ou = $args[2] }
+                #$DomainJoin = 1
+                #$CreateAccount = 2
+                #$AllowJoinIfAlreadyJoined = 32
+                #$options = $DomainJoin + $CreateAccount + $AllowJoinIfAlreadyJoined
+                #$computer = Get-WmiObject -Class Win32_ComputerSystem
+                #if ($null -ne $ou) {
+                #    $result = $computer.JoinDomainOrWorkGroup($domain, $djAccount.Username, $djAccount.GetNetworkCredential().password, $ou, $options)
+                #} else {
+                #    $result = $computer.JoinDomainOrWorkGroup($domain, $djAccount.Username, $djAccount.GetNetworkCredential().password, $null, $options)
+                #}
+                #$retVal = $result.ReturnValue
+                #if ($retVal -eq 0 ) {
+                #    return $true
+                #} else {
+                #    Write-Error -Message "Domain join error. Returned: $retVal"
+                #    return $false
+                #}
+                #return $true
             } catch {
                 Write-Error -Message 'There was a problem running the DomainJoin provisioner'
                 Write-Error -Message "$($_.InvocationInfo.ScriptName)($($_.InvocationInfo.ScriptLineNumber)): $($_.InvocationInfo.Line)"

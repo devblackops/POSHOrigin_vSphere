@@ -33,9 +33,11 @@ process {
                     $node = $json | ConvertFrom-Json
 
                     # Verify environment
-                    if ($node.chef_environment.ToLower() -ne $chefOptions.environment.ToLower()) {
-                        Write-Verbose -Message "Chef environment doesn't match [$($node.chef_environment.ToLower()) <> $($chefOptions.environment.ToLower()))"
-                        $match = $false
+                    if ($chefOptions.environment) {
+                        if ($node.chef_environment.ToLower() -ne $chefOptions.environment.ToLower()) {
+                            Write-Verbose -Message "Chef environment doesn't match [$($node.chef_environment.ToLower()) <> $($chefOptions.environment.ToLower()))"
+                            $match = $false
+                        }
                     }
 
                     # Verify run list matches
