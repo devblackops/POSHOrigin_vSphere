@@ -70,7 +70,6 @@ Remove-Item -Path $tmpFile -Force
 
 # Sign the request and build up the headers
 $headers = & "$PSScriptRoot\_SetHeaders.ps1" -Path $uri.AbsolutePath -Method $method -data $data -useritem $useritem -Key $key
-$headers = & "$PSScriptRoot\_SetHeaders.ps1" -Path $uri.AbsolutePath -Method $method -data $data -useritem $useritem -Key $key
 
 # if the data_checksum is not false add it to the headers
 if ($data_checksum -ne $false) {

@@ -389,15 +389,14 @@ function Test-TargetResource {
     # Connect to vCenter
     $script:VCConnected = _ConnectTovCenter -vCenter $vCenter -Credential $vCenterCredentials    
 
+    $result = $true
+
     # Check if VM exists
     $vm = Get-VM -Name $Name -verbose:$false -ErrorAction SilentlyContinue | select -First 1
     if ($vm -ne $null) {
-
-        Write-Host -Object "[ $Name ] was found"
-
-        Write-Verbose -Message "[ $Name ] was found"
+        Write-Verbose -Message "VM exists"
     } else {
-        Write-Verbose -Message "[ $Name ] was not found"
+        Write-Verbose -Message "VM does not exist"
     }
     
     # If VM exists, is it supposed to?
@@ -418,31 +417,35 @@ function Test-TargetResource {
 
     #region Run through tests
     # RAM
-    if (-not (_TestVMRAM -VM $vm -RAM $vRAM)) { 
-        Write-Verbose -Message "[$($vm.Name)] does not match desired vRAM allocation"
-        return $false
-    }
+    $ramResult = _TestVMRAM -VM $vm -RAM $vRAM
+    $match = if ( $ramResult) { 'MATCH' } else { 'MISMATCH' }
+    Write-Verbose -Message "RAM: $match"
     
     # CPU
-    if (-not (_TestVMCPU -vm $vm -TotalvCPU $TotalvCPU -CoresPerSocket $CoresPerSocket)) {
-        Write-Verbose -Message "[$($vm.Name)] does not match desired vCPU allocation"
-        return $false
-    }
+    $cpuResult = _TestVMCPU -vm $vm -TotalvCPU $TotalvCPU -CoresPerSocket $CoresPerSocket
+    $match = if ( $cpuResult) { 'MATCH' } else { 'MISMATCH' }
+    Write-Verbose -Message "vCPU: $match"
+    
    
     # Disks
-    if (-not (_TestVMDisks -vm $vm -DiskSpec $Disks)) { return $false }
+    $vmDiskResult = _TestVMDisks -vm $vm -DiskSpec $Disks
+    $match = if ( $vmDiskResult) { 'MATCH' } else { 'MISMATCH' }
+    Write-Verbose -Message "VM Disks: $match"
 
     # Guest disks
     _refreshHostStorageCache -vm $vm -Credential $GuestCredentials
-    if (-not (_TestGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials)) {
-        Write-Verbose -Message '_TestGuestDisks() did not pass'
-        return $false
-    }
+    $guestDiskResult = _TestGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials
+    $match = if ( $guestDiskResult) { 'MATCH' } else { 'MISMATCH' }
+    Write-Verbose -Message "Guest disks: $match"
 
     # NICs
+    # TODO
 
     # Power state
-    if (-not (_TestVMPowerState -vm $vm -PowerOnAfterCreation $PowerOnAfterCreation)) { return $false }
+    $powerResult = _TestVMPowerState -vm $vm -PowerOnAfterCreation $PowerOnAfterCreation
+    $match = if ( $powerResult) { 'MATCH' } else { 'MISMATCH' }
+    Write-Verbose -Message "Power state: $match"
+
     #endregion
 
     # Test provisioners

@@ -92,7 +92,7 @@ switch ($type) {
         } else {
             $configName = $Options.Name.Replace('-', '')
             $confName = "$type" + '_' + $configName
-            Write-Verbose -Message "Returning configuration function for resource: $confName"
+            #Write-Verbose -Message "Returning configuration function for resource: $confName"
             Configuration $confName {
                 Param (
                     [psobject]$ResourceOptions

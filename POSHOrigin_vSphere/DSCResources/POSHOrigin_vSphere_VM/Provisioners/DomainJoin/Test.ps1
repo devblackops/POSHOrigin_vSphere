@@ -9,7 +9,7 @@ begin {
 }
 
 process {
-    Write-Verbose -Message 'Testing DomainJoin provisioner...'
+    #Write-Verbose -Message 'Testing DomainJoin provisioner...'
 
     $provOptions = ConvertFrom-Json -InputObject $Options.Provisioners
     $djOptions = $provOptions | Where-Object {$_.name -eq 'DomainJoin'}
@@ -20,6 +20,10 @@ process {
         $cmd = {
             $compSys = Get-WmiObject -Class Win32_ComputerSystem
             if ($compSys.PartOfDomain) {
+
+                # TODO
+                # Check OU membership
+
                 if ($compSys.Domain -ne $args[0].domain) {
                     # Computer is joined to a different domain then the one defined in options
                     return $false
@@ -41,7 +45,8 @@ process {
                 ArgumentList = $djOptions.options
             }
             $result = Invoke-Command @params
-            Write-Verbose -Message "DomainJoin test: $result"
+            $match = if ( $result) { 'MATCH' } else { 'MISMATCH' }
+            Write-Verbose -Message "DomainJoin provisioner: $match"
             return $result
         } else {
             throw 'DomainJoin options were not found in provisioner options!'
