@@ -26,7 +26,7 @@ process {
                     Write-Verbose -Message 'Installing Chef client...'
                     try {
                         $options = $args[0]
-                        $provOptions = $args[1].options
+                        $provOptions = $args[1]
                         $source = $provOptions.source
                         $sourceName = 'chef-client.msi'
                         $validatorKey = $provOptions.validatorKey
