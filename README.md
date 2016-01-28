@@ -111,8 +111,11 @@ resource 'POSHOrigin_vSphere:VM' 'VM01' @{
                 )
                 environment = 'prod'
                 attributes = @{
-                    'myapp.prop1' = 42
-                    'myapp.prop2' = 'something'
+                    myapp = @{
+                        prop1 = 42
+                        prop2 = 'something string'
+                        prop3 = @('item1', 'item2')
+                    }
                 }
             }
         }
