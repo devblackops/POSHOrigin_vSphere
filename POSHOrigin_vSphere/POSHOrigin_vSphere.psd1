@@ -15,8 +15,7 @@ PrivateData = @{
         LicenseUri = 'http://www.apache.org/licenses/LICENSE-2.0'
         ProjectUri = 'https://github.com/devblackops/POSHOrigin_vSphere'
         #IconUri = ''
-        ReleaseNotes = 'Fix environment check bug in chef provisioner test script. Fix bug in DomainJoin provisioner script. 
-        Repeatedly rebuilding a VM and rejoining to the same domain should now work.'
+        ReleaseNotes = 'Modifed Chef provisioner to use REST API rather than relying on knife on the target node'
         # External dependent modules of this module
         # ExternalModuleDependencies = ''
     }
