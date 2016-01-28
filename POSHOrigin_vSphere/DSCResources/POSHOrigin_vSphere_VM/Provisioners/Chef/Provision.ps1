@@ -138,13 +138,13 @@ node_name               '$fqdnlower'
                         Write-Verbose -Message "Chef run list does not match"
 
                         # Update the run list on the node
-                        $chefNode.run_List = @($chefOptions.runlist) | ForEach-Object {
+                        $chefNode.run_List = @(@($chefOptions.runlist) | ForEach-Object {
                             if ($_.recipe) {
                                 "recipe[$($_.recipe)]"
                             } elseif ($_.role) {
                                 "role[$($_.role)]"
                             }
-                        }
+                        })
 
                         # Send the json to the Chef API
                         $newRunList = $chefNode.Run_List -join ','

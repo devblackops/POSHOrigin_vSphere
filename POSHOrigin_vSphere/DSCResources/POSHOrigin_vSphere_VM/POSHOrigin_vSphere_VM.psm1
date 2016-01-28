@@ -450,19 +450,17 @@ function Test-TargetResource {
 
     # Test provisioners
     if ($Provisioners -ne [string]::Empty) {
-        #if ($newVM -eq $true) {
-            foreach ($p in (ConvertFrom-Json -InputObject $Provisioners)) {
-                $provPath = "$PSScriptRoot\Provisioners\$($p.name)\Test.ps1"
-                if (Test-Path -Path $provPath) {
-                    $params = $PSBoundParameters
-                    $params.vm = $vm
-                    $provisionerPassed = (& $provPath $params)
-                    if (-not $provisionerPassed) {
-                        return $false
-                    }
+        foreach ($p in (ConvertFrom-Json -InputObject $Provisioners)) {
+            $provPath = "$PSScriptRoot\Provisioners\$($p.name)\Test.ps1"
+            if (Test-Path -Path $provPath) {
+                $params = $PSBoundParameters
+                $params.vm = $vm
+                $provisionerPassed = (& $provPath $params)
+                if (-not $provisionerPassed) {
+                    return $false
                 }
             }
-        #}
+        }
     }
 
     return $true

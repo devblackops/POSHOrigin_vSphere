@@ -23,9 +23,8 @@ process {
 
         if ($null -ne $ip -and $ip -ne [string]::Empty) {
             $chefSvc = Invoke-Command -ComputerName $ip -Credential $Options.GuestCredentials -ScriptBlock { Get-Service -Name chef-client -ErrorAction SilentlyContinue } -Verbose:$false
-            $result = $true
+            $chefSvcResult = $true
             if ($chefSvc) {
-
                 # Get the node
                 $params = @{
                     Method = 'GET'
@@ -37,33 +36,55 @@ process {
                 $chefNode = & "$PSScriptRoot\Helpers\_InvokeChefQuery.ps1" @params
 
                 # If we found a node in Chef, do extra validation
+                $chefNodeResult = $true
                 if ($chefNode) {
                     # Verify environment
+                    $envResult = $true
                     if ($chefOptions.environment) {
                         if ($chefNode.chef_environment.ToLower() -ne $chefOptions.environment.ToLower()) {
-                            Write-Verbose -Message "Chef environment doesn't match [$($chefNode.chef_environment.ToLower()) <> $($chefOptions.environment.ToLower()))]"
-                            $result = $false
+                            Write-Verbose -Message "Chef environment: MISMATCH [$($chefNode.chef_environment.ToLower()) <> $($chefOptions.environment.ToLower()))]"
+                            $envResult = $false
                         }
+                    }
+                    if ($envResult) {
+                        Write-Verbose -Message "Chef environment: MATCH"
                     }
 
                     # Verify run list matches
-                    if (@($chefNode.run_list).Count -ne @($chefOptions.runlist).Count) {
-                        $currList = @($chefNode.run_list) | Sort
-                        $currList = @($chefNode.run_list) | Sort
-                        $configList = @($chefOptions.runlist) | ForEach-Object {
+                    $runlistResult = $true
+                    if (-not $chefOptions.runlist -and $chefOptions.runList.Count -ne 0) {
+                        $chefOptions | Add-Member -MemberType NoteProperty -Name runlist -Value @()
+                    }
+                    if ($chefOptions.runlist.Count -gt 0) {
+                        # Create a string array of our runlist so we can easily compare it
+                        # to what we get back from the Chef API
+                        $refRunList = @($chefOptions.runlist) | ForEach-Object {
                             if ($_.recipe) {
                                 "recipe[$($_.recipe)]"
                             } elseif ($_.role) {
                                 "role[$($_.role)]"
                             }
                         }
-                        if ($null -eq $configList) { $configList = @()}
-                        $configList = $configList | sort
-
-                        if (Compare-Object -ReferenceObject $configList -DifferenceObject $currList) {
-                            Write-Verbose -Message "Chef run list does not match"
-                            $result = $false
+                        $diffRunList = @($chefNode.run_list)
+                        if ($diffRunList.Count -gt 0) {
+                            # Compare the Chef node runlist to what our desired runlist is
+                            if (Compare-Object -ReferenceObject $refRunList -DifferenceObject $diffRunList) {
+                                $runlistResult = $false
+                            }
+                        } else {
+                            # The Chef node has no runlist but should
+                            $runlistResult = $false
                         }
+                    } else {
+                        # Our desired runlist is nothing. Check if Chef node has a run list
+                        if ($chefNode.run_list.count -gt 0) {
+                            $runlistResult = $false
+                        }
+                    }
+                    if (-Not $runListResult) {
+                        Write-Verbose -Message "Chef runlist: MISMATCH"
+                    } else {
+                        Write-Verbose -Message "Chef runlist: MATCH"
                     }
 
                     # Verify attributes
@@ -71,6 +92,7 @@ process {
                     # so we can compare it against Chef
                     # Chef node attributes usually have an empty tags attributes by default
                     # so add that to the reference if isn't doesn't already exist
+                    $attributeResult = $true
                     if (-Not $ChefOptions.attributes) {
                         $chefOptions | Add-Member -MemberType NoteProperty -Name attributes -Value @{tags = @{}}
                     } else {
@@ -81,23 +103,24 @@ process {
                     $refJson = $chefOptions.attributes | ConvertTo-Json
                     $diffJson = $chefNode.normal | ConvertTo-Json
                     if ($diffJson -ne $refJson) {
-                        Write-Verbose -Message "Chef attributes do not match"
-                        $result = $false
+                        Write-Verbose -Message "Chef attributes: MISMATCH"
+                        $attributeResult = $false
                     }
                 } else {
-                    Write-Verbose -Message 'Chef client is installed but node could not be found on Chef server'
-                    $result = $false
+                    $chefNodeResult = $false
+                    Write-Verbose -Message 'Chef client: installed but node could not be found on Chef server'
                 }
             } else {
-                Write-Verbose -Message 'Chef client not found'
-                $result = $false
+                Write-Verbose -Message 'Chef client: not found'
+                $chefSvcResult = $false
             }
         } else {
             throw 'No valid IP address returned from VM view. Can not test for Chef client'
         }
 
-        $match = if ( $result) { 'MATCH' } else { 'MISMATCH' }
-        Write-Verbose -Message "Chef provisioner: $match"
+        $result = ($chefSvcResult -and $chefNodeResult -and $envResult -and $runlistResult -and $attributeResult)
+        #$match = if ($result) { 'MATCH' } else { 'MISMATCH' }
+        #Write-Verbose -Message "Chef provisioner: $match"
         return $result
     } catch {
         Write-Error -Message 'There was a problem testing for the Chef client'

@@ -10,7 +10,7 @@ begin {
 
 process {
     try {
-        Write-Verbose -Message 'Removing Chef client...'
+        Write-Verbose -Message 'Deleting node from Chef...'
         $provOptions = ConvertFrom-Json -InputObject $Options.Provisioners
         $chefOptions = ($provOptions | Where-Object {$_.name -eq 'chef'}).Options
         
@@ -18,7 +18,7 @@ process {
             Method = 'DELETE'
             OrgUri = $chefOptions.url
             Path = "/nodes/$($chefOptions.NodeName)"
-            UserItem = ($chefOptions.clientKey.split('/') | Select-Object -Last 1).Split('.')[0] 
+            UserItem = (Split-Path -Path $chefOptions.clientKey -Leaf).Split('.')[0]
             KeyPath = $chefOptions.clientKey
         }
         
@@ -28,7 +28,6 @@ process {
         # Delete the "client"
         $params.Path = "/clients/$($chefOptions.NodeName)"
         & "$PSScriptRoot\Helpers\_InvokeChefQuery.ps1" @params
-        
     } catch {
         Write-Error -Message 'There was a problem running the Chef provisioner'
         Write-Error -Message "$($_.InvocationInfo.ScriptName)($($_.InvocationInfo.ScriptLineNumber)): $($_.InvocationInfo.Line)"
