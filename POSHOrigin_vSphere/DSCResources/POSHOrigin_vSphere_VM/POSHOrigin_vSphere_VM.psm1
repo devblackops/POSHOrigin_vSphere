@@ -449,6 +449,7 @@ function Test-TargetResource {
     #endregion
 
     # Test provisioners
+    $provisionerResults = @()
     if ($Provisioners -ne [string]::Empty) {
         foreach ($p in (ConvertFrom-Json -InputObject $Provisioners)) {
             $provPath = "$PSScriptRoot\Provisioners\$($p.name)\Test.ps1"
@@ -456,13 +457,19 @@ function Test-TargetResource {
                 $params = $PSBoundParameters
                 $params.vm = $vm
                 $provisionerPassed = (& $provPath $params)
-                if (-not $provisionerPassed) {
-                    return $false
-                }
+                $provisionerResults += $provisionerPassed
+                #if (-not $provisionerPassed) {
+                #    return $false
+                #}
             }
         }
     }
 
+    if (-not ($ramResult -and $cpuResult -and $vmDiskResult -and $guestDiskResult -and $powerResult) -or
+        ($provisionerResults | Where-Object {$_ -ne $true })) {
+        return $false
+    }
+    
     return $true
 }
 
