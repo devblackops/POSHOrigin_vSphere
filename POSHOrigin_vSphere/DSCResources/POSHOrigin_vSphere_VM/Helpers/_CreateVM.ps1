@@ -169,7 +169,6 @@ function _CreateVM {
 
             # Wait for task to complete
             while ($t.State.ToString().ToLower() -eq 'running') {
-
                 Write-Verbose -Message "VM creation $($t.PercentComplete)% complete"
                 Start-Sleep -Seconds 10
                 $t = Get-Task -Id $t.Id -Verbose:$false -Debug:$false
@@ -180,7 +179,7 @@ function _CreateVM {
                 #$vm = Get-VM -Id $t.Result.Vm -Verbose:$false -Debug:$false
                 $vm = Get-VM -Name $Name -Verbose:$false -Debug:$false
             }
-                    
+
             if ($null -eq $vm) {
                 throw 'VM failed to create'
             }

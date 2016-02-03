@@ -40,10 +40,8 @@
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_SetVMNICs.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_SetVMPowerState.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_SetVMRAM.ps1" />
-    <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_TestChefClient.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_TestGuestDisks.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_TestVMCPU.ps1" />
-    <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_TestVMDiskCount.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_TestVMDisks.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_TestVMNICs.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_TestVMPowerState.ps1" />
