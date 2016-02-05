@@ -15,12 +15,11 @@ function _TestVMDisks {
     }
 
     process {
-               
         try {
             $configDisks = ConvertFrom-Json -InputObject $DiskSpec -Verbose:$false
             $vmDisks = @($vm | Get-HardDisk -Verbose:$false -Debug:$false)
-            Write-Debug -Message "Configuration disk count: $(@($configDisks).Count)"
-            Write-Debug -Message "VM disk count: $(@($vmDisks).Count)"
+            Write-Debug -Message "Desired VM disk count: $(@($configDisks).Count)"
+            Write-Debug -Message "Current VM disk count: $(@($vmDisks).Count)"
 
             if ( @($configDisks).Count -ne @($vmDisks).Count) {
                 Write-Verbose -Message 'Disk count does not match configuration'

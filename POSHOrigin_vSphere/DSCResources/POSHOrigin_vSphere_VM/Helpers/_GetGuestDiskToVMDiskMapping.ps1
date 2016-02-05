@@ -1,53 +1,60 @@
+# Based on https://communities.vmware.com/thread/528535?start=0&tstart=0
+
 function _GetGuestDiskToVMDiskMapping {
     [cmdletbinding()]
     param (
         [Parameter(Mandatory)]
         [ValidateNotNull()]
-        $vm,
+        $VM,
 
         [Parameter(Mandatory)]
-        [ValidateNotNullOrEmpty()]
-        [string]$DiskSpec
+        $cim,
+
+        [Parameter(Mandatory)]
+        [pscredential]$Credential
     )
 
     try {
-        $vmView = $vm | Get-View -Verbose:$false -Debug:$false
-        $configDisks = ConvertFrom-Json -InputObject $DiskSpec -Verbose:$false
-        $vmDisks = @($vm | Get-HardDisk -Verbose:$false -Debug:$false)
+        $vmView = $VM | Get-View -Verbose:$false -Debug:$false
 
-        # Create our disk configuration objects that will be passed into the guest OS
-        # via VM tools. The Guest will then format the drives based on the instructions
-        $diskInstructions = @()
-        foreach ($scsiController in ($vmView.Config.Hardware.Device | Where-Object {$_.DeviceInfo.Label -match "SCSI Controller"})) {
-            foreach ($diskDevice in ($vmView.Config.Hardware.Device | Where-Object {$_.ControllerKey -eq $scsiController.Key})) {
-                        
-                $disk = [pscustomobject]@{
-                    DiskName = $diskDevice.DeviceInfo.Label
-                    DiskSizeGB = $diskDevice.CapacityInKB / 1024 / 1024
-                    SCSIController = $scsiController.BusNumber
-                    SCSITarget = $diskDevice.UnitNumber
-                    VolumeName = $null
-                    VolumeLabel = $null
-                    BlockSize = $null
-                }
+        # Get the ESX host which the VM is currently running on
+        $esxHost = Get-VMHost -Id $vmView.Summary.Runtime.Host -Verbose:$false
 
-                # Find matching disk from configuration
-                $matchingDisk = @( $configDisks | Where-Object {$_.Name -eq $disk.DiskName} )
+        $wmiDisks = Get-CimInstance -CimSession $cim -ClassName Win32_DiskDrive -Verbose:$false
 
-                #Shouldn't happen, but just in case..
-                if ($matchingDisk.count -gt 1) {
-                    Write-Error -Message "Too many matches: $($matchingDisk | Select-Object Name, SizeGB, Type, Format | Out-String)"
-                } elseif($matchingDisk.count -eq 1) {
-                    $disk.VolumeName = $matchingDisk.VolumeName
-                    $disk.VolumeLabel = $matchingDisk.VolumeLabel
-                    $disk.BlockSize = $matchingDisk.BlockSize
+        # Use 'Invoke-VMScript' to grab disk information WMI on the guest
+        #$Out = Invoke-VMScript "wmic path win32_diskdrive get Index, SCSIPort, SCSITargetId /format:csv" -vm $VM -GuestCredential $guestCred -scripttype "bat"
+        #$fileName = [System.IO.Path]::GetTempFileName()  
+        #$out.Substring(2) > $fileName
+        #$wmiDisks = Import-Csv -Path $fileName
+        #Remove-Item $fileName
+
+        # Match the guest disks to the VM disks by SCSI bus number and unit number
+        $diskInfo = @()
+        foreach ($virtualSCSIController in ($vmView.Config.Hardware.Device | where {$_.DeviceInfo.Label -match "SCSI Controller"})) {
+            foreach ($virtualDiskDevice in ($vmView.Config.Hardware.Device | where {$_.ControllerKey -eq $virtualSCSIController.Key})) {
+                $mapping = "" | Select SCSIController, DiskName, SCSIId, SCSIBus, SCSIUnit, DiskFile,  DiskSize, WindowsDisk, SerialNumber
+                $mapping.SCSIController = $virtualSCSIController.DeviceInfo.Label
+                $mapping.DiskName = $virtualDiskDevice.DeviceInfo.Label
+                $mapping.SCSIId = "$($virtualSCSIController.BusNumber)`:$($virtualDiskDevice.UnitNumber)"
+                $mapping.SCSIBus = $($virtualSCSIController.BusNumber)
+                $mapping.SCSIUnit = $($virtualDiskDevice.UnitNumber)
+                $mapping.DiskFile = $virtualDiskDevice.Backing.FileName
+                $mapping.DiskSize = $virtualDiskDevice.CapacityInKB * 1KB / 1GB
+
+                $match = $wmiDisks | Where-Object {([int]$_.SCSIPort – 2) -eq $virtualSCSIController.BusNumber -and [int]$_.SCSITargetID -eq $virtualDiskDevice.UnitNumber}
+                if ($match) {
+                    $mapping.WindowsDisk = $match.Index
+                    $mapping.SerialNumber = $match.SerialNumber
                 } else {
-                    Write-Error -Message 'VM has a disk that is not part of the configuration. Either add this disk to the configuratino or remove the disk from the VM.'
+                    #Write-Verbose -Message "No matching Windows disk found for SCSI ID [$($mapping.SCSIId)]"
                 }
-                $diskInstructions += $disk
+                
+                $diskInfo += $mapping
             }
         }
-        return $diskInstructions
+        Write-Verbose -Message ($diskInfo | ft DiskName, SCSIId, DiskSize, WindowsDisk, SerialNumber  -AutoSize | out-string)
+        return $diskInfo
     } catch {
         Write-Error -Message 'There was a problem getting the guest disk mapping'
         Write-Error -Message "$($_.InvocationInfo.ScriptName)($($_.InvocationInfo.ScriptLineNumber)): $($_.InvocationInfo.Line)"

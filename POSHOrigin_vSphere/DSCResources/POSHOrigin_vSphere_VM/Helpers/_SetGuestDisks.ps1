@@ -19,12 +19,10 @@ function _SetGuestDisks{
 
     process {
         try { 
-            $mapping = _GetGuestDiskToVMDiskMapping -vm $vm -DiskSpec $DiskSpec
-
-            $t = Get-VM -Id $vm.Id -Verbose:$false -Debug:$false
-            $ip = $t.Guest.IPAddress | Where-Object { ($_ -notlike '169.*') -and ( $_ -notlike '*:*') } | Select-Object -First 1
-
-            if ($null -ne $ip -and $ip -ne [string]::Empty) {
+            $desiredDiskConfigMapping = _GeConfigDiskToVMDiskMapping -vm $vm -DiskSpec $DiskSpec
+           
+            $ip = _GetGuestVMIPAddress -VM $vm
+            if ($ip) {
 
                 # Let's do a sanity check first.
                 # Make sure we passed in valid values for the block size
@@ -32,7 +30,7 @@ function _SetGuestDisks{
                 $blockSizes = @(
                     4096, 8192, 16386, 32768, 65536
                 )
-                $mapping | foreach {
+                $desiredDiskConfigMapping | foreach {
                     # Set default block size
                     if ($_.BlockSize -eq $null) {
                         $_.BlockSize = 4096
@@ -45,33 +43,36 @@ function _SetGuestDisks{
                 
                 $cim = New-CimSession -ComputerName $ip -Credential $Credential -Verbose:$false
                 $session = New-PSSession -ComputerName $ip -Credential $credential -Verbose:$false
-                $wmiDisks = Get-CimInstance -CimSession $cim -ClassName Win32_DiskDrive -Verbose:$false            
-                #$disks = Get-Disk -CimSession $cim -Verbose:$false
+                
+                # Get mapped disks between the guest and VMware
+                $guestDiskMapping = _GetGuestDiskToVMDiskMapping -VM $vm -cim $cim -Credential $Credential
+
                 $disks = Invoke-Command -Session $session -ScriptBlock { Get-Disk } -Verbose:$false
 
-                # If the VM has a cdrom, mount it as 'Z:'
-
-                if (((Get-CimInstance -CimSession $cim -ClassName win32_cdromdrive -Verbose:$false) | Where-Object {$_.Caption -like "*vmware*"} | Select-Object -First 1).Drive -ne "Z:") {
-                    Write-Verbose -Message 'Changing CDROM to Z:'
-                    $cd = (Get-CimInstance -CimSession $cim -ClassName Win32_cdromdrive -Verbose:$false) | Where-Object {$_.Caption -like "*vmware*"}
-                    $oldLetter = $cd.Drive
-                    $cdVolume = Get-CimInstance -CimSession $cim -ClassName Win32_Volume -Filter "DriveLetter='$oldLetter'" -Verbose:$false
-                    Set-CimInstance -CimSession $cim -InputObject $cdVolume -Property @{DriveLetter='Z:'} -Verbose:$false
-                }                
+                # Rename CDROM to Z:
+                _RenameCDROM -cim $cim -DriveLetter 'Z'
 
                 # Format each disk according to instructions
-                foreach ($config in $mapping) {
-                    $match = $wmiDisks | Where-Object {($_.SCSIBus -eq $config.SCSIController) -and ($_.SCSITargetId -eq $config.SCSITarget)} | Select-Object -First 1
-                    #write-host ($match | fl * | out-string)
+                foreach ($config in $desiredDiskConfigMapping) {
 
-                    if ($null -ne $match) {
-                        $disk = $disks | Where-Object {$_.SerialNumber -eq $match.SerialNumber} | select -first 1
-                        if ($null -ne $disk) {
+                    # Do we have a matching guest disk
+                    $guestDisk = $guestDiskMapping | Where-Object {$_.SCSIBus -eq $config.SCSIController -and $_.SCSIUnit -eq $config.SCSITarget} | Select-Object -First 1
+
+                    if ($guestDisk) {
+
+                        $disk = $disks | Where-Object {$_.Number -eq $guestDisk.WindowsDisk} | Select-Object -First 1
+
+                        if ($disk) {
+
+                            # Format / Initialize disk
+                            _FormatGuestDisk -disk $disk -session $session -PartitionStyle GPT -VolumeName $config.VolumeName -VolumeLabel $config.VolumeLabel -AllocationUnitSize $config.BlockSize
+
+                            <#
                             write-debug ($disk | fl * | out-string)
                             Write-Debug -Message "Looking at disk $($disk.Number)"
                             #Write-Verbose -Message "Configuring disk $($disk.Number)"
 
-                            # Online the disk            
+                            # Online the disk
                             if ($disk.IsOffline -eq $true) {
                                 Write-Debug -Message "Bringing disk [ $($disk.Number) ] online"
                                 #$disk | Set-Disk -CimSession $cim -IsOffline $false -Verbose:$false
@@ -82,7 +83,7 @@ function _SetGuestDisks{
 
                             if ($disk.PartitionStyle -eq 0) {
                                 Write-Verbose -Message "Initializing disk $($disk.Number)"
-                                #$disk | Initialize-Disk -CimSession $cim -PartitionStyle GPT -Verbose:$false -PassThru |                                
+                                #$disk | Initialize-Disk -CimSession $cim -PartitionStyle GPT -Verbose:$false -PassThru |
                                 #New-Partition -CimSession $cim -DriveLetter $config.VolumeName -UseMaximumSize -Verbose:$false |
                                 #Format-Volume -CimSession $cim -FileSystem NTFS -NewFileSystemLabel $config.VolumeLabel -AllocationUnitSize $config.BlockSize –Force -Verbose:$false -Confirm:$false | Out-Null
                                 $cmd = {
@@ -103,10 +104,11 @@ function _SetGuestDisks{
                                             Format-Volume -FileSystem NTFS -NewFileSystemLabel $args[2] -AllocationUnitSize $args[3] -Force -Verbose:$false -Confirm:$false | Out-Null
                                     }
                                     Invoke-Command -Session $session -ScriptBlock $cmd -ArgumentList @($disk, $config.VolumeName, $config.VolumeLabel, $config.BlockSize) -Verbose:$false 
-                                }                                  
+                                }
                             }
+                            #>
                         } else {
-                            Write-Verbose -Message 'Could not find matching disk'
+                            Write-Verbose -Message "Could not find guest disk [$($guestDisk.WindowsDisk)]"
                         }
                     } else {
                         Write-Verbose -Message "Could not find disk $($config.SCSIController):$($config.SCSITarget)"
@@ -117,39 +119,38 @@ function _SetGuestDisks{
                 # if the matching volume from the mapping has a size greater
                 # than what exists, then extend the volume to match the configuration
                 # BIG ASSUMPTION
-                # There is only one volume per disk                
-                $wmiDisks = Get-CimInstance -CimSession $cim -ClassName Win32_DiskDrive -Verbose:$false
-                #$formatedDisks = Get-Disk -CimSession $cim -Verbose:$false | Where-Object {$_.PartitionStyle -ne 'Raw'}
+                # There is only one volume per disk
+
+                # Get mapped disks between the guest and VMware
+                $guestDiskMapping = _GetGuestDiskToVMDiskMapping -VM $vm -cim $cim -Credential $Credential
+
                 $formatedDisks = Invoke-Command -Session $session -ScriptBlock { Get-Disk | Where-Object {$_.PartitionStyle -ne 'Raw'} }
-                foreach ($config in $mapping) {
-                    $match = $wmiDisks | Where-Object {($_.SCSIBus -eq $config.SCSIController) -and ($_.SCSITargetId -eq $config.SCSITarget)} | select -First 1
-                    if ($null -ne $match) {
-                        $disk = $formatedDisks | Where-Object {$_.SerialNumber -eq $match.SerialNumber} | Select-Object -first 1
-                        if ($null -ne $disk) {                        
+                foreach ($config in $desiredDiskConfigMapping) {
+
+                    # Do we have a matching guest disk
+                    $guestDisk = $guestDiskMapping | Where-Object {$_.SCSIBus -eq $config.SCSIController -and $_.SCSIUnit -eq $config.SCSITarget} | Select-Object -First 1
+
+                    if ($guestDisk) {
+                        $disk = $formatedDisks | Where-Object {$_.SerialNumber -eq $guestDisk.SerialNumber} | Select-Object -first 1
+                        if ($null -ne $disk) {
                             Write-Debug -Message "Looking at disk $($disk.Number)"
-                            #$partition = $disk | Get-Partition -CimSession $cim -Verbose:$false | Where-Object {$_.Type -ne 'Reserved' -and $_.IsSystem -eq $false} | Select-Object -First 1
                             $partition = Invoke-Command -Session $session -ScriptBlock { $args[0] | Get-Partition | Where-Object {$_.Type -ne 'Reserved' -and $_.IsSystem -eq $false} | Select-Object -First 1 } -ArgumentList $disk -Verbose:$false 
-                            #$sizes = $partition | Get-PartitionSupportedSize -CimSession $cim -Verbose:$false | Select-Object -Last 1
                             $sizes = Invoke-Command -Session $session -ScriptBlock { $args[0] | Get-PartitionSupportedSize | Select-Object -Last 1 } -ArgumentList $partition -Verbose:$false
                             # The max partition size is greater than the current partition size
 
                             Write-Debug -Message "Partition size: $($partition.Size)"
                             Write-Debug -Message "Paritition max size: $($sizes.SizeMax)"
-                            if ( [math]::round($partition.Size / 1GB) -lt [math]::round($sizes.SizeMax / 1GB)) {                                
-                                Write-Verbose -Message "Resisizing disk $($partition.DiskNumber) partition $($partition.PartitionNumber) to $($config.DiskSizeGB) GB"                                                               
-                                #$partition | Resize-Partition -CimSession $cim -Confirm:$false -Size $sizes.SizeMax -Verbose:$false
+                            if ( [math]::round($partition.Size / 1GB) -lt [math]::round($sizes.SizeMax / 1GB)) {
+                                Write-Verbose -Message "Resisizing disk $($partition.DiskNumber) partition $($partition.PartitionNumber) to $($config.DiskSizeGB) GB"
                                 Invoke-Command -Session $session -ScriptBlock { $args[0] | Resize-Partition -Confirm:$false -Size $args[1] } -ArgumentList @($partition, $sizes.SizeMax) -Verbose:$false 
                             }
-                        
-                            #$volume = $partition | Get-Volume -CimSession $cim -Verbose:$false
+
                             $volume = Invoke-Command -Session $session -ScriptBlock { $args[0] | Get-Volume } -ArgumentList $partition -Verbose:$false
-                            
+
                             # Drive letter
                             if ($Volume.DriveLetter -ne $config.VolumeName) {
                                 Write-Debug -Message "Setting drive letter to [$($config.VolumeName) ]"
-                                #$partition | Set-Partition -CimSession $cim -NewDriveLetter $config.VolumeName -Verbose:$false
                                 Invoke-Command -Session $session -ScriptBlock { $args[0] | Set-Partition -NewDriveLetter $args[1] } -ArgumentList @($partition, $config.VolumeName) -Verbose:$false
-
                             }
 
                             # Volume label
@@ -157,8 +158,7 @@ function _SetGuestDisks{
                                 Write-Debug -Message "Setting volume to [$($config.VolumeLabel) ]"
                                 $vol = Get-CimInstance -CimSession $cim -ClassName Win32_LogicalDisk -Filter "deviceid='$($Volume.DriveLetter):'" -Verbose:$false
                                 $vol | Set-CimInstance -Property @{volumename=$config.VolumeLabel} -Verbose:$false
-                                #$volume | Set-Volume -CimSession $cim -NewFileSystemLabel $config.VolumeLabel -Verbose:$false 
-                            }                                                   
+                            }
                         }
                     }
                 }
