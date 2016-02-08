@@ -155,7 +155,7 @@ function _SetGuestDisks{
 
                             # Volume label
                             if ($Volume.FileSystemLabel -ne $config.VolumeLabel) {
-                                Write-Debug -Message "Setting volume to [$($config.VolumeLabel) ]"
+                                Write-Debug -Message "Setting volume to [$($config.VolumeLabel)]"
                                 $vol = Get-CimInstance -CimSession $cim -ClassName Win32_LogicalDisk -Filter "deviceid='$($Volume.DriveLetter):'" -Verbose:$false
                                 $vol | Set-CimInstance -Property @{volumename=$config.VolumeLabel} -Verbose:$false
                             }

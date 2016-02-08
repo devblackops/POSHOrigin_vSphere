@@ -64,7 +64,7 @@ function _TestGuestDisks {
                                 # The max partition size is greater than the current partition size
                                 if ( [math]::round($partition.Size / 1GB) -lt [math]::round($sizes.SizeMax / 1GB)) {
                                     $partSize = [Math]::Round($partition.Size / 1GB)
-                                    Write-Verbose -Message "Disk $($disk.Number) does not match configuration: $partSize GB <> $($config.DiskSizeGB) GB"
+                                    Write-Verbose -Message "Disk [$($disk.Number)] does not match configuration [$partSize GB <> $($config.DiskSizeGB) GB]"
                                     $pass = $false
                                 }
 
@@ -74,17 +74,17 @@ function _TestGuestDisks {
 
                                 # Drive letter
                                 if ($volume.DriveLetter -ne $config.VolumeName) {
-                                    Write-Verbose -Message "Volume [ $($volume.DriveLetter) ] does not match configuration [ $($config.VolumeName) ]"
+                                    Write-Verbose -Message "Volume [$($volume.DriveLetter)] does not match configuration [$($config.VolumeName)]"
                                     $pass = $false
                                 }
 
                                 # Volume label
                                 if ($volume.FileSystemLabel -ne $config.VolumeLabel) {
-                                    Write-Verbose -Message "Volume label [ $($Volume.FileSystemLabel) ] does not match configuration [ $($config.VolumeLabel) ]"
+                                    Write-Verbose -Message "Volume label [$($Volume.FileSystemLabel)] does not match configuration [$($config.VolumeLabel)]"
                                     $pass = $false
                                 }
                             } else {
-                                Write-Verbose -Message "Could not find partition for disk $($config.SCSIController):$($config.SCSITarget)"
+                                Write-Verbose -Message "Could not find partition for disk [$($config.SCSIController):$($config.SCSITarget)]"
                                 $pass = $false
                             }
                         } else {
@@ -92,7 +92,7 @@ function _TestGuestDisks {
                             $pass = $false
                         }
                     } else {
-                        Write-Verbose -Message "Could not find disk $($config.SCSIController):$($config.SCSITarget)"
+                        Write-Verbose -Message "Could not find disk [$($config.SCSIController):$($config.SCSITarget)]"
                         $pass = $false
                     }
                 }

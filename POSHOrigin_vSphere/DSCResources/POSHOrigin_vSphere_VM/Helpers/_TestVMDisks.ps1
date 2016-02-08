@@ -38,8 +38,14 @@ function _TestVMDisks {
 
                 $vmDiskCap = [system.math]::round($vmDisk.CapacityGB, 0)
                 if ($vmDiskCap -ne $disk.SizeGB) {
-                    Write-Verbose -Message "Disk [$($disk.Name)] does not match configured size"
-                    return $false
+
+                    # Produce error if the desired disk size is less than the actual disk size
+                    if ($vmDiskCap -gt $disk.SizeGB) {
+                        Write-Warning -Message "The current disk size [$vmDiskCap GB] is greater than the desired disk size [$($disk.SizeGB) GB]. Can not shrink VM disks"
+                    } else {
+                        Write-Verbose -Message "Disk [$($disk.Name)] does not match configured size"
+                        return $false
+                    }
                 }
 
                 $vmDiskStorageFormat = ''

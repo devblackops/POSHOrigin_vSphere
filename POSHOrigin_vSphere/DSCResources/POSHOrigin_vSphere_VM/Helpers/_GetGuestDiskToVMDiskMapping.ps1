@@ -49,11 +49,11 @@ function _GetGuestDiskToVMDiskMapping {
                 } else {
                     #Write-Verbose -Message "No matching Windows disk found for SCSI ID [$($mapping.SCSIId)]"
                 }
-                
+
                 $diskInfo += $mapping
             }
         }
-        Write-Verbose -Message ($diskInfo | ft DiskName, SCSIId, DiskSize, WindowsDisk, SerialNumber  -AutoSize | out-string)
+        Write-Debug -Message ($diskInfo | ft DiskName, SCSIId, DiskSize, WindowsDisk, SerialNumber  -AutoSize | out-string)
         return $diskInfo
     } catch {
         Write-Error -Message 'There was a problem getting the guest disk mapping'

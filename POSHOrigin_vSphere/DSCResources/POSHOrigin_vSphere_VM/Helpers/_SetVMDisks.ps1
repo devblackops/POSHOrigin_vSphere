@@ -35,9 +35,11 @@ function _SetVMDisks {
         } else {
             # Resize VM disk
             if ($vmDisk.CapacityGB -lt $disk.SizeGB) {
-                Write-Verbose "Resizing disk [$($vmDisk.Name) to $($disk.SizeGB) GB"
+                Write-Verbose "Resizing disk [$($vmDisk.Name)] to [$($disk.SizeGB)] GB"
                 $vmDisk | Set-Harddisk -CapacityGB $disk.SizeGB -Verbose:$false -Confirm:$false
                 $changed = $true
+            } elseIf ($vmDisks.CapacityGB -gt $disk.SizeGB) {
+                Write-Warning -Message "The current disk size [$($vmDisk.CapacityGB) GB] is greater than the desired disk size [$($disk.SizeGB) GB]. Can not shrink VM disks"
             }
         }
     }
