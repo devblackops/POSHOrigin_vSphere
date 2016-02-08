@@ -29,6 +29,7 @@
   <ItemGroup>
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_ConnectTovCenter.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_CreateVM.ps1" />
+    <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_DisconnectFromvCenter.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_FormatGuestDisk.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_GetConfigDiskToVMDiskMapping.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_GetGuestDiskToVMDiskMapping.ps1" />
