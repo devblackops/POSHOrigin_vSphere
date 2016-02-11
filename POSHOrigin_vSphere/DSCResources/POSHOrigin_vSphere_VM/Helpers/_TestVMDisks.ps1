@@ -15,7 +15,7 @@ function _TestVMDisks {
     }
 
     process {
-               
+
         try {
             $configDisks = ConvertFrom-Json -InputObject $DiskSpec -Verbose:$false
             $vmDisks = @($vm | Get-HardDisk -Verbose:$false -Debug:$false)
