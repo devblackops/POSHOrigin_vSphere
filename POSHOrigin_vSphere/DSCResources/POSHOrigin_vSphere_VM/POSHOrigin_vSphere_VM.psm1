@@ -336,6 +336,7 @@ function Set-TargetResource {
         Write-Error "$($_.InvocationInfo.ScriptName)($($_.InvocationInfo.ScriptLineNumber)): $($_.InvocationInfo.Line)"
         Write-Error $_
     }
+    _DisconnectFromvCenter -vCenter $vCenter
 }
 
 function Test-TargetResource {
@@ -504,6 +505,7 @@ function Test-TargetResource {
         return $false
     }
 
+    _DisconnectFromvCenter -vCenter $vCenter
     return $true
 }
 
