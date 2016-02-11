@@ -13,8 +13,6 @@ function _CreateVM {
         [ValidateNotNullOrEmpty()]
         [string]$Cluster,
 
-        [string]$Folder = [string]::Empty,
-
         [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
         [string]$InitialDatastore,
@@ -29,7 +27,9 @@ function _CreateVM {
 
         [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
-        [string]$CustomizationSpec
+        [string]$CustomizationSpec,
+
+        [string]$Folder = [string]::Empty
 
         <#
         [string]$IPAMFqdn,
@@ -37,7 +37,7 @@ function _CreateVM {
         [pscredential]$IPAMCredentials
         #>
     )
-    
+
     try {
         $continue = $true
         $sdrs = $false
@@ -45,7 +45,7 @@ function _CreateVM {
         # Resolve VM template
         $template = Get-Template -Name $VMTemplate -verbose:$false | Select-Object -First 1
         if ($template -ne $null) { 
-            Write-Debug -Message "Template: $($template.Name)" 
+            Write-Debug -Message "Template: $($template.Name)"
         } else {
             Write-Error -Message "Unable to resolve template $VMTemplate"
             $continue = $false

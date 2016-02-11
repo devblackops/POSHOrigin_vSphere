@@ -44,6 +44,9 @@ function Get-TargetResource {
         $VMTemplate,
 
         [System.String]
+        $VMFolder,
+
+        [System.String]
         $CustomizationSpec,
 
         [System.Management.Automation.PSCredential]
@@ -136,6 +139,9 @@ function Set-TargetResource {
         $VMTemplate,
 
         [System.String]
+        $VMFolder,
+
+        [System.String]
         $CustomizationSpec,
 
         [System.Management.Automation.PSCredential]
@@ -195,6 +201,9 @@ function Set-TargetResource {
                     #IPAMFqdn = $IPAMFqdn
                     #IPAMCredentials =  $IPAMCredentials
                 }
+                if ($VMFolder -ne [string]::empty) {
+                    $params.Folder = $VMFolder
+                }
                 $vm = _CreateVM @params
                 if ($null -ne $vm) {
                     Write-Verbose -Message 'VM created successfully'
@@ -237,13 +246,24 @@ function Set-TargetResource {
                 _WaitForVMTools -vm $vm -Credential $GuestCredentials
             }
 
-            if ($updatedVMDisks -eq $true) {
-                _refreshHostStorageCache -vm $vm -Credential $GuestCredentials
+            if ($VM.PowerState -eq 'PoweredOn') {
+                if ($updatedVMDisks -eq $true) {
+                    _refreshHostStorageCache -vm $vm -Credential $GuestCredentials
+                }
+                
+                # Set guest disks
+                if (-not (_TestGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials)) {
+                    _SetGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials
+                }
+            } else {
+                Write-Warning -Message 'VM is powered off. Skipping guest check'
             }
-
-            # Set guest disks
-            if (-not (_TestGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials)) {
-                _SetGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials
+            
+            # Set VM Folder
+            if ($VMFolder -ne [string]::empty) {
+                if (-Not (_TestVMFolder -VM $VM -VMFolder $VMFolder)) {
+                    _MoveVM -VM $VM -VMFolder $VMFolder
+                }
             }
 
             # Run any provisioners
@@ -356,6 +376,9 @@ function Test-TargetResource {
         $VMTemplate,
 
         [System.String]
+        $VMFolder,
+
+        [System.String]
         $CustomizationSpec,
 
         [System.Management.Automation.PSCredential]
@@ -398,7 +421,7 @@ function Test-TargetResource {
     } else {
         Write-Verbose -Message "VM does not exist"
     }
-    
+
     # If VM exists, is it supposed to?
     if ($Ensure -eq 'Present') {
         if (-Not $vm) {
@@ -433,13 +456,24 @@ function Test-TargetResource {
     Write-Verbose -Message "VM Disks: $match"
 
     # Guest disks
-    _refreshHostStorageCache -vm $vm -Credential $GuestCredentials
-    $guestDiskResult = _TestGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials
-    $match = if ( $guestDiskResult) { 'MATCH' } else { 'MISMATCH' }
-    Write-Verbose -Message "Guest disks: $match"
+    if ($VM.PowerState -eq 'PoweredOn') {
+        _refreshHostStorageCache -vm $vm -Credential $GuestCredentials
+        $guestDiskResult = _TestGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials
+        $match = if ( $guestDiskResult) { 'MATCH' } else { 'MISMATCH' }
+        Write-Verbose -Message "Guest disks: $match"
+    } else {
+        Write-Warning -Message 'VM is powered off. Skipping guest disk check'
+    }
 
     # NICs
     # TODO
+
+    # Test VM folder
+    if ($VMFolder -ne [string]::Empty) {
+        $folderResult = _TestVMFolder -VM $vm -VMFolder $VMFolder
+        $match = if ( $folderResult) { 'MATCH' } else { 'MISMATCH' }
+        Write-Verbose -Message "VM Folder: $match"
+    }
 
     # Power state
     $powerResult = _TestVMPowerState -vm $vm -PowerOnAfterCreation $PowerOnAfterCreation
@@ -465,11 +499,11 @@ function Test-TargetResource {
         }
     }
 
-    if (-not ($ramResult -and $cpuResult -and $vmDiskResult -and $guestDiskResult -and $powerResult) -or
+    if (-not ($ramResult -and $cpuResult -and $vmDiskResult -and $guestDiskResult -and $powerResult -and $folderResult) -or
         ($provisionerResults | Where-Object {$_ -ne $true })) {
         return $false
     }
-    
+
     return $true
 }
 
