@@ -317,11 +317,13 @@ function Set-TargetResource {
             $vm = Get-VM -Name $Name -Verbose:$false -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($null -ne $vm) {
                 try {
-                    Write-Verbose -Message 'Stopping VM'
-                    $stopResult = $vm | Stop-VM -Confirm:$false -Verbose:$false
-                    Write-Verbose -Message 'VM stopped'
-                    if ($stopResult.PowerState -eq 'PoweredOff') {
-                        $delResult = $stopResult | Remove-VM -DeletePermanently -Confirm:$false -Verbose:$false
+                    if ($vm.PowerState -eq 'PoweredOn') {
+                        Write-Verbose -Message 'Stopping VM'
+                        $stopResult = $vm | Stop-VM -Confirm:$false -Verbose:$false
+                        Write-Verbose -Message 'VM stopped'
+                    }
+                    if ($vm.PowerState -eq 'PoweredOff' -or $stopResult.PowerState -eq 'PoweredOff') {
+                        $delResult = $vm | Remove-VM -DeletePermanently -Confirm:$false -Verbose:$false
                         Write-Verbose -Message 'VM deleted'
                     } else {
                         throw 'Unable to stop VM'
