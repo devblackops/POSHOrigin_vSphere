@@ -10,43 +10,36 @@ function _GetVMFolderByPath{
     .PARAMETER Path
         The path to the folder.
         This is a required parameter.
-    .PARAMETER Path
-        The path to the folder.
-        This is a required parameter.
-    .PARAMETER Separator
-        The character that is used to separate the leaves in the
-        path. The default is '/'
     .EXAMPLE
-        PS> Get-FolderByPath -Path "Folder1/Datacenter/Folder2"
-    .EXAMPLE
-        PS> Get-FolderByPath -Path "Folder1>Folder2" -Separator '>'
+        PS> Get-FolderByPath -Path 'Folder1/Datacenter/Folder2'
     #> 
     param(
         [CmdletBinding()]
         [parameter(Mandatory)]
-        [System.String[]]$Path,
-
-        [char]$Separator = '/'
+        [System.String[]]$Path
     )
- 
+
     process{
-        if((Get-PowerCLIConfiguration).DefaultVIServerMode -eq 'Multiple') {
+        if ((Get-PowerCLIConfiguration).DefaultVIServerMode -eq 'Multiple') {
             $vcs = $defaultVIServers
         } else{
             $vcs = $defaultVIServers[0]
         }
- 
+
         foreach($vc in $vcs) {
             foreach($strPath in $Path) {
-                $root = Get-Folder -Name Datacenters -Server $vc
-                $strPath.Split($Separator) | Foreach-Object {
-                    $root = Get-Inventory -Name $_ -Location $root -Server $vc -NoRecursion
-                    if((Get-Inventory -Location $root -NoRecursion | Select -ExpandProperty Name) -contains "vm"){
-                        $root = Get-Inventory -Name 'vm' -Location $root -Server $vc -NoRecursion
+                # Normalize slashes and strip out any leading or training '/' 
+                $strPath = $strPath.Replace('\','/').Trim('/')
+
+                $root = Get-Folder -Name Datacenters -Server $vc -Verbose:$false
+                $strPath.Split('/') | Foreach-Object {
+                    $root = Get-Inventory -Name $_ -Location $root -Server $vc -NoRecursion -Verbose:$false
+                    if ((Get-Inventory -Location $root -NoRecursion -Verbose:$false | Select -ExpandProperty Name) -contains "vm"){
+                        $root = Get-Inventory -Name 'vm' -Location $root -Server $vc -NoRecursion -Verbose:$false
                     }
                 }
-                $root | where {$_ -is [VMware.VimAutomation.ViCore.Impl.V1.Inventory.FolderImpl]} | Foreach-Object {
-                    Get-Folder -Name $_.Name -Location $root.Parent -Server $vc
+                $root | Where-Object {$_ -is [VMware.VimAutomation.ViCore.Impl.V1.Inventory.FolderImpl]} | Foreach-Object {
+                    Get-Folder -Name $_.Name -Location $root.Parent -Server $vc -Verbose:$false
                 }
             }
         }

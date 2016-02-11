@@ -32,6 +32,7 @@
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_GetGuestDiskToVMDiskMapping.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_GetVMFolderByPath.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_GetVMFolderPath.ps1" />
+    <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_MoveVM.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_refreshHostStorageCache.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_RequestInfoBloxIP.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_SetGuestDisks.ps1" />
@@ -43,6 +44,7 @@
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_TestGuestDisks.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_TestVMCPU.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_TestVMDisks.ps1" />
+    <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_TestVMFolder.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_TestVMNICs.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_TestVMPowerState.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_TestVMRAM.ps1" />
@@ -93,6 +95,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="appveyor.yml" />
+    <Content Include="CHANGELOG.md" />
     <Content Include="CONTRIBUTING.md" />
     <Content Include="LICENSE" />
     <Content Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Provisioners\Chef\helpers\BouncyCastle.Crypto.dll" />

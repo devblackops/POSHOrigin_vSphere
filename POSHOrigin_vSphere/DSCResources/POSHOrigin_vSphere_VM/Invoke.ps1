@@ -41,6 +41,7 @@ switch ($type) {
                 vRAM = $Options.options.vRAM
                 Datacenter = $Options.options.Datacenter
                 Cluster = $Options.options.Cluster
+                VMFolder = $Options.options.VMFolder
                 InitialDatastore = $Options.options.InitialDatastore
                 Disks = ConvertTo-Json -InputObject $Options.options.disks -Depth 999
                 CustomizationSpec = $Options.options.CustomizationSpec
@@ -164,6 +165,7 @@ switch ($type) {
                     vRAM = $ResourceOptions.options.vRAM
                     Datacenter = $ResourceOptions.options.Datacenter
                     Cluster = $ResourceOptions.options.Cluster
+                    VMFolder = $ResourceOptions.options.VMFolder
                     InitialDatastore = $ResourceOptions.options.InitialDatastore
                     Disks = ConvertTo-Json -InputObject $ResourceOptions.options.disks
                     CustomizationSpec = $ResourceOptions.options.CustomizationSpec

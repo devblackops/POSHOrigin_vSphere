@@ -12,6 +12,7 @@ class POSHOrigin_vSphere_VM : OMI_BaseResource
     [Write] String Disks;
     [Write] String Networks;
     [Write] String VMTemplate;
+    [Write] String VMFolder;
     [Write] String CustomizationSpec;
     [Write, EmbeddedInstance("MSFT_Credential")] String GuestCredentials;
     [Write, EmbeddedInstance("MSFT_Credential")] String IPAMCredentials;
