@@ -29,11 +29,16 @@
   <ItemGroup>
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_ConnectTovCenter.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_CreateVM.ps1" />
+    <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_DisconnectFromvCenter.ps1" />
+    <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_FormatGuestDisk.ps1" />
+    <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_GetConfigDiskToVMDiskMapping.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_GetGuestDiskToVMDiskMapping.ps1" />
+    <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_GetGuestVMIPAddress.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_GetVMFolderByPath.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_GetVMFolderPath.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_MoveVM.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_refreshHostStorageCache.ps1" />
+    <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_RenameCDROM.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_RequestInfoBloxIP.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_SetGuestDisks.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Helpers\_SetVMCPU.ps1" />

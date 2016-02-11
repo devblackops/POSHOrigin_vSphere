@@ -28,6 +28,7 @@ Parameters
 | vRAM                  | int          | True     | Total vRAM in GB
 | Datacenter            | string       | True     | Name of virtual datacenter for VM
 | Cluster               | string       | True     | Name of cluster to deploy VM into
+| VMFolder              | string       | False    | Path of VM folder to place VM in
 | InitialDatastore      | string       | True     | Name of datastore or datastore cluster to deploy VM in
 | PowerOnAfterCreation  | bool         | False    | Indicates if VM should be powered on after creation. Default is **True**
 | IPAMFqdn              | string       | False    | InfoBlox FQDN to allocate IP from
@@ -51,6 +52,7 @@ resource 'POSHOrigin_vSphere:VM' 'VM01' @{
     vCenter = 'vcenter01.local'
     datacenter = 'datacenter01'
     cluster = 'cluster01'
+    vmFolder = 'vdc01/folder01'
     vmTemplate = 'W2K12_R2_Std'
     customizationSpec = 'W2K12_R2'
     powerOnAfterCreation = $true

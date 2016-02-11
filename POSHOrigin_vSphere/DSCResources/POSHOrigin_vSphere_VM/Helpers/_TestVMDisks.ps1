@@ -15,12 +15,11 @@ function _TestVMDisks {
     }
 
     process {
-
         try {
             $configDisks = ConvertFrom-Json -InputObject $DiskSpec -Verbose:$false
             $vmDisks = @($vm | Get-HardDisk -Verbose:$false -Debug:$false)
-            Write-Debug -Message "Configuration disk count: $(@($configDisks).Count)"
-            Write-Debug -Message "VM disk count: $(@($vmDisks).Count)"
+            Write-Debug -Message "Desired VM disk count: $(@($configDisks).Count)"
+            Write-Debug -Message "Current VM disk count: $(@($vmDisks).Count)"
 
             if ( @($configDisks).Count -ne @($vmDisks).Count) {
                 Write-Verbose -Message 'Disk count does not match configuration'
@@ -39,8 +38,14 @@ function _TestVMDisks {
 
                 $vmDiskCap = [system.math]::round($vmDisk.CapacityGB, 0)
                 if ($vmDiskCap -ne $disk.SizeGB) {
-                    Write-Verbose -Message "Disk [$($disk.Name)] does not match configured size"
-                    return $false
+
+                    # Produce error if the desired disk size is less than the actual disk size
+                    if ($vmDiskCap -gt $disk.SizeGB) {
+                        Write-Warning -Message "The current disk size [$vmDiskCap GB] is greater than the desired disk size [$($disk.SizeGB) GB]. Can not shrink VM disks"
+                    } else {
+                        Write-Verbose -Message "Disk [$($disk.Name)] does not match configured size"
+                        return $false
+                    }
                 }
 
                 $vmDiskStorageFormat = ''
