@@ -14,7 +14,7 @@ function _SetVMPowerState {
             Start-VM -VM $vm -Verbose:$false -Debug:$false
             
             <#
-            $t = Start-VM -VM $vm -RunAsync -Verbose:$false -Debug:$false          
+            $t = Start-VM -VM $vm -RunAsync -Verbose:$false -Debug:$false
             # Wait for task to complete
             while ($t.State.ToString().ToLower() -eq 'running') {
                 Start-Sleep -Seconds 10

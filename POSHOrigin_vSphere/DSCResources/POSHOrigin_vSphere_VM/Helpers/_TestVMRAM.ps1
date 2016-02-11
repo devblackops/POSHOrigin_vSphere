@@ -6,7 +6,7 @@ function _TestVMRAM {
     )
 
     # VM matches memory
-    if ($VM.MemoryGB -ne $RAM) {        
+    if ($VM.MemoryGB -ne $RAM) {
         return $false
     } else {
         return $true

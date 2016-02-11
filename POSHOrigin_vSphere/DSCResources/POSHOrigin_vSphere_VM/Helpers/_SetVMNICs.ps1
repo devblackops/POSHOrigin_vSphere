@@ -215,9 +215,11 @@ function _SetVMNICs {
                 # Verify the IP address(s) that we're about to set are not already in use
                 $ips = Get-OSCustomizationNicMapping -OSCustomizationSpec $specClone -Verbose:$false
                 foreach ($mapping in $ips) {
-                    $pingable = Test-Connection -ComputerName $mapping.IPAddress -Count 1 -Quiet
-                    if ($pingable) {
-                        throw "$($mapping.IPAddress) appears to already be in use. Failed to set this IP."
+                    if ($mapping.IPAddress) {
+                        $pingable = Test-Connection -ComputerName $mapping.IPAddress -Count 1 -Quiet -ErrorAction SilentlyContinue
+                        if ($pingable) {
+                            throw "$($mapping.IPAddress) appears to already be in use. Failed to set this IP."
+                        }
                     }
                 }
                 

@@ -8,9 +8,12 @@ function _TestVMPowerState {
         [bool]$PowerOnAfterCreation
     )
 
-    if (($PowerOnAfterCreation -eq $true) -and ($vm.PowerState -eq 'PoweredOn')) {
-        return $true
-    } else {        
-        return $false
+    switch ($PowerOnAfterCreation) {
+        $true {
+            return ($PowerOnAfterCreation -and ($vm.PowerState -eq 'PoweredOn'))
+        }
+        $false {
+            return (($PowerOnAfterCreation -eq $false) -and ($vm.PowerState -ne 'PoweredOn'))
+        }
     }
 }
