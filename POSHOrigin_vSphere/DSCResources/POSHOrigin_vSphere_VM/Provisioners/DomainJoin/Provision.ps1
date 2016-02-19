@@ -30,8 +30,8 @@ process {
                 Write-Verbose -Message "Joining domain [$($args[1])]"
                 Add-Computer @params -ErrorAction SilentlyContinue | Out-Null
                 $params.Remove('OUPath')
-                $params.Restart = $true
                 Add-Computer @params -ErrorAction SilentlyContinue | Out-Null
+                #Restart-Computer -Delay 5 -Verbose:$false -Force -Confirm:$false
                 return $true
 
                 ## WMI Method
@@ -78,6 +78,7 @@ process {
             $result = Invoke-Command @params
 
             if ($result) {
+                Restart-Computer -ComputerName $ip -Force -Confirm:$false -Credential $Options.GuestCredentials
                 # Wait for machine to reboot
                 Write-Verbose -Message "Waiting for machine to become available..."
                 Start-Sleep -Seconds 10
