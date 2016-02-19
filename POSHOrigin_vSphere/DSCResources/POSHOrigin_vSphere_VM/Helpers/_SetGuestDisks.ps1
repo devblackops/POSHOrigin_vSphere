@@ -15,14 +15,12 @@ function _SetGuestDisks{
 
     begin {
         Write-Debug -Message 'Starting _SetGuestDisks()'
-
-
     }
 
     process {
         try {
             $desiredDiskConfigMapping = _GeConfigDiskToVMDiskMapping -vm $vm -DiskSpec $DiskSpec
-           
+
             $ip = _GetGuestVMIPAddress -VM $vm
             if ($ip) {
 
