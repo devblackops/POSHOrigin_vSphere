@@ -1,3 +1,6 @@
+## 1.1.8
+    * Fix bad test logic when comparing Chef attributes
+    * Fix bug in testing VM disks.
 
 ## 1.1.7
     * Add support for VM folder placement
