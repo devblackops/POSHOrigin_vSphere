@@ -45,7 +45,7 @@ function _TestVMDisks {
 
                 # TODO
                 # Validate VM disk is on correct SCSI controller / bus number
-                if ($disk.SCSI) {
+                if ($disk.SCSI -and $null -ne $vmDisk) {
 
                     # The SCSI Id the VM disk 'should' be on
                     $desiredSCSIControllerNumber = $disk.SCSI.Id.Split(':')[0]
@@ -69,34 +69,38 @@ function _TestVMDisks {
 
                 }
 
-                $vmDiskCap = [system.math]::round($vmDisk.CapacityGB, 0)
-                if ($vmDiskCap -ne $disk.SizeGB) {
+                if ($null -ne $vmDisk) {
+                    $vmDiskCap = [system.math]::round($vmDisk.CapacityGB, 0)
+                    if ($vmDiskCap -ne $disk.SizeGB) {
 
-                    # Produce error if the desired disk size is less than the actual disk size
-                    if ($vmDiskCap -gt $disk.SizeGB) {
-                        Write-Warning -Message "The current disk size [$vmDiskCap GB] is greater than the desired disk size [$($disk.SizeGB) GB]. Can not shrink VM disks"
-                    } else {
-                        Write-Verbose -Message "Disk [$($disk.Name)] does not match configured size"
-                        $diskSize = $false
-                        #return $false
+                        # Produce error if the desired disk size is less than the actual disk size
+                        if ($vmDiskCap -gt $disk.SizeGB) {
+                            Write-Warning -Message "The current disk size [$vmDiskCap GB] is greater than the desired disk size [$($disk.SizeGB) GB]. Can not shrink VM disks"
+                        } else {
+                            Write-Verbose -Message "Disk [$($disk.Name)] does not match configured size"
+                            $diskSize = $false
+                            #return $false
+                        }
                     }
                 }
 
-                if ($null -ne $vmDisk.StorageFormat) {
-                    $vmDiskStorageFormat = $vmDisk.StorageFormat
-                }
-                if ($null -ne $disk.Format) {
-                    $diskStorageFormat = $disk.Format
-                }
-                if ($vmDiskStorageFormat.ToString().ToLower() -ne $diskStorageFormat.ToLower()) {
-                    Write-Verbose -Message "Disk [$($disk.Name)] storage format [$($vmDiskStorageFormat.ToString().ToLower()) <> @($diskStorageFormat.ToLower()) )]"
-                    $diskFormat = $false
-                    #return $false
-                }
-                if ($vmDisk.DiskType.ToString().ToLower() -ne $disk.Type.ToLower()) {
-                    Write-Verbose -Message "Disk [$($disk.Name)] type [$($vmDisk.DiskType.ToString().ToLower()) <> $($disk.Type.ToLower())]"
-                    $diskType = $false
-                    #return $false
+                if ($null -ne $vmDisk) {
+                    if ($null -ne $vmDisk.StorageFormat) {
+                        $vmDiskStorageFormat = $vmDisk.StorageFormat
+                    }
+                    if ($null -ne $disk.Format) {
+                        $diskStorageFormat = $disk.Format
+                    }
+                    if ($vmDiskStorageFormat.ToString().ToLower() -ne $diskStorageFormat.ToLower()) {
+                        Write-Verbose -Message "Disk [$($disk.Name)] storage format [$($vmDiskStorageFormat.ToString().ToLower()) <> $($diskStorageFormat.ToLower())]"
+                        $diskFormat = $false
+                        #return $false
+                    }
+                    if ($vmDisk.DiskType.ToString().ToLower() -ne $disk.Type.ToLower()) {
+                        Write-Verbose -Message "Disk [$($disk.Name)] type [$($vmDisk.DiskType.ToString().ToLower()) <> $($disk.Type.ToLower())]"
+                        $diskType = $false
+                        #return $false
+                    }
                 }
             }
 
