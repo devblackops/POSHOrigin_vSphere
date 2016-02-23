@@ -25,6 +25,7 @@ process {
             $chefSvc = Invoke-Command -ComputerName $ip -Credential $Options.GuestCredentials -ScriptBlock { Get-Service -Name chef-client -ErrorAction SilentlyContinue } -Verbose:$false
             $chefSvcResult = $true
             if ($chefSvc) {
+
                 # Get the node
                 $params = @{
                     Method = 'GET'
@@ -94,10 +95,10 @@ process {
                     # so add that to the reference if isn't doesn't already exist
                     $attributeResult = $true
                     if (-Not $ChefOptions.attributes) {
-                        $chefOptions | Add-Member -MemberType NoteProperty -Name attributes -Value @{tags = @{}}
+                        $chefOptions | Add-Member -MemberType NoteProperty -Name attributes -Value @{tags = @()}
                     } else {
                         if (-Not $ChefOptions.attributes.tags) {
-                            $chefOptions.attributes | Add-Member -MemberType NoteProperty -Name tags -Value @{}
+                            $chefOptions.attributes | Add-Member -MemberType NoteProperty -Name tags -Value @()
                         }
                     }
                     $refJson = $chefOptions.attributes | ConvertTo-Json
@@ -119,8 +120,8 @@ process {
         }
 
         $result = ($chefSvcResult -and $chefNodeResult -and $envResult -and $runlistResult -and $attributeResult)
-        #$match = if ($result) { 'MATCH' } else { 'MISMATCH' }
-        #Write-Verbose -Message "Chef provisioner: $match"
+        $match = if ($result) { 'MATCH' } else { 'MISMATCH' }
+        Write-Verbose -Message "Chef provisioner: $match"
         return $result
     } catch {
         Write-Error -Message 'There was a problem testing for the Chef client'
