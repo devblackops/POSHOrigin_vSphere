@@ -274,6 +274,7 @@ function Set-TargetResource {
                             
                         $params = $PSBoundParameters
                         $params.vm = $vm
+                        $params.ProvOptions = $p.options
 
                         $provisionerResult = (& $testPath $params)
                         if ($provisionerResult -ne $true) {
@@ -297,6 +298,7 @@ function Set-TargetResource {
                     if (Test-Path -Path $testPath) {
                         $params = $PSBoundParameters
                         $params.vm = $vm
+                        $params.ProvOptions = $p.options
                         $provisionerResult = (& $testPath $params)
                         if ($provisionerResult -eq $true) {
                             $provPath = "$PSScriptRoot\Provisioners\$($p.name)\Deprovision.ps1"
@@ -493,6 +495,7 @@ function Test-TargetResource {
             if (Test-Path -Path $provPath) {
                 $params = $PSBoundParameters
                 $params.vm = $vm
+                $params.ProvOptions = $p.options
                 $provisionerPassed = (& $provPath $params)
                 $provisionerResults += $provisionerPassed
                 #if (-not $provisionerPassed) {
