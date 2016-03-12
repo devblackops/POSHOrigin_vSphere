@@ -5,7 +5,7 @@ param(
 )
 
 begin {
-    Write-Debug -Message 'Script deprovisioner: beginning'
+    Write-Debug -Message 'Powershell script deprovisioner: beginning'
 }
 
 process {
@@ -14,5 +14,5 @@ process {
 }
 
 end {
-    Write-Debug -Message 'Script deprovisioner: ending'
+    Write-Debug -Message 'Powershell script deprovisioner: ending'
 }

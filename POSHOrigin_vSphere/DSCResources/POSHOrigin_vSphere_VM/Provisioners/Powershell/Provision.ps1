@@ -5,7 +5,7 @@ param(
 )
 
 begin {
-    Write-Debug -Message 'Script provisioner test: beginning'
+    Write-Debug -Message 'Powershell script provisioner: beginning'
 }
 
 process {
@@ -14,5 +14,5 @@ process {
 }
 
 end {
-    Write-Debug -Message 'Script provisioner test: ending'
+    Write-Debug -Message 'Powershell script provisioner: ending'
 }
