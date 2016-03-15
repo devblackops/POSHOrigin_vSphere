@@ -72,6 +72,9 @@
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Provisioners\DomainJoin\Provision.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Provisioners\DomainJoin\Test.ps1" />
     <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Invoke.ps1" />
+    <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Provisioners\Powershell\Deprovision.ps1" />
+    <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Provisioners\Powershell\Provision.ps1" />
+    <Compile Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Provisioners\Powershell\Test.ps1" />
     <Compile Include="POSHOrigin_vSphere\Examples\Example_POSHOrigin_VM.ps1" />
     <Compile Include="POSHOrigin_vSphere\Examples\Example_POSHOrigin_with_defaults.ps1" />
     <Compile Include="POSHOrigin_vSphere\Examples\Example_VM.ps1" />
@@ -95,6 +98,7 @@
     <Folder Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Provisioners\Chef\" />
     <Folder Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Provisioners\Chef\helpers\" />
     <Folder Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Provisioners\DomainJoin\" />
+    <Folder Include="POSHOrigin_vSphere\DSCResources\POSHOrigin_vSphere_VM\Provisioners\Powershell\" />
     <Folder Include="POSHOrigin_vSphere\Examples\" />
     <Folder Include="Tests\" />
   </ItemGroup>
