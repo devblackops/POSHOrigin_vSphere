@@ -5,19 +5,19 @@ param(
 )
 
 begin {
-    Write-Debug -Message 'Script provisioner: beginning'
+    Write-Debug -Message 'Powershell script deprovisioner: beginning'
 }
 
 process {
     $scriptPath = $Options.ProvOptions.Path
     
     if (Test-Path -Path $scriptPath) {
-        & $scriptPath -Options $Options -Mode 'Provision'
+        & $scriptPath -Options $Options -Mode 'Deprovision'
     } else {
         Write-Error -Message "Unable to find provisioner script [$scriptPath]"
     }
 }
 
 end {
-    Write-Debug -Message 'Script provisioner: ending'
+    Write-Debug -Message 'Powershell script deprovisioner: ending'
 }
