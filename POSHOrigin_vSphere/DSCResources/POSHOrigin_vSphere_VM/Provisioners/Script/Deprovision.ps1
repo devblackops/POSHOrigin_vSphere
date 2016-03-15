@@ -9,8 +9,13 @@ begin {
 }
 
 process {
-    $provisionerOptions = $Options.ProvOptions    
-    Write-Verbose -Message $provisionerOptions
+    $scriptPath = $Options.ProvOptions.Path
+    
+    if (Test-Path -Path $scriptPath) {
+        & $scriptPath -Options $Options -Mode 'Deprovision'
+    } else {
+        Write-Error -Message "Unable to find provisioner script [$scriptPath]"
+    }
 }
 
 end {

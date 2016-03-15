@@ -104,7 +104,7 @@ function _TestVMDisks {
                 }
             }
 
-            return ($diskCount -and $diskExist -and $diskSCSI -and $diskSize, $diskType, $diskFormat)
+            return ($diskCount -and $diskExist -and $diskSCSI -and $diskSize -and $diskType -and $diskFormat)
             #return $true
         } catch {
             Write-Error -Message 'There was a problem testing the disks.'

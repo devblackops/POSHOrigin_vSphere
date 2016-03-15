@@ -60,7 +60,7 @@ function _CreateVM {
             if ($null -ne $clus) {
                 Write-Debug -Message "VMHost: $($clus.Name)"
             } else {
-                Write-Error -Message 'Unable to resolve cluster or VM Host [$Cluster]'
+                Write-Error -Message "Unable to resolve cluster or VM Host [$Cluster]"
                 $continue = $false
             }
         }
@@ -75,6 +75,7 @@ function _CreateVM {
                 $sdrs = $true
                 Write-Debug -Message "Datastore cluster: $InitialDatastore"
             } else {
+                Write-Error -Message "Unable to resolve datastore or datastore cluster [$InitialDatastore]"
                 $continue = $false
             }
         }
@@ -82,6 +83,10 @@ function _CreateVM {
         # Resolve folder to put VM into
         if ($Folder -ne [string]::Empty) {
             $vmFolder = _GetVMFolderByPath -Path $Folder -ErrorAction SilentlyContinue
+            if (!$vmFolder) {
+                Write-Error -Message "Unable to resolve folder [$Folder]"
+                $continue = $false
+            }
         } else {
             $vmFolder = $null
         }

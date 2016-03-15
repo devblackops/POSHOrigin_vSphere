@@ -246,6 +246,7 @@ function Set-TargetResource {
                 _WaitForVMTools -vm $vm -Credential $GuestCredentials
             }
 
+            $vm = Get-VM -Name $Name -Verbose:$false -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($VM.PowerState -eq 'PoweredOn') {
                 if ($updatedVMDisks -eq $true) {
                     _refreshHostStorageCache -vm $vm -Credential $GuestCredentials
