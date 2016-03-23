@@ -1,8 +1,12 @@
+## 1.1.11
+    * Fix bad test logic when evaluating DSC resource
+
 ## 1.1.10
     * Refresh VM power state before testing if VM is powered on
     * Fix bad logic when testing VM disk configurations
     * Display error message when failing to resolve datastore before VM creation
     * Display error message when failing to resolve VM folder before VM creation
+    * Rename 'script' provisioner to 'powershell'
 
 ## 1.1.9
     * Add generic script provisioner

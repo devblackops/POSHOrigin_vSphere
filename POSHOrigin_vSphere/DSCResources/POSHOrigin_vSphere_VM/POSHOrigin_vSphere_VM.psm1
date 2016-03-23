@@ -76,7 +76,7 @@ function Get-TargetResource {
         [System.String]
         $Provisioners
     )
-    
+
     $returnValue = @{
         Name = $Name
         Ensure = $Ensure
@@ -220,7 +220,7 @@ function Set-TargetResource {
             }
 
             # Set RAM
-            if (-not (_TestVMRAM -vm $vm -RAM $vRAM)) { 
+            if (-not (_TestVMRAM -vm $vm -RAM $vRAM)) {
                 _SetVMRAM -vm $vm -RAM $vRAM
             }
 
@@ -235,7 +235,7 @@ function Set-TargetResource {
             }
 
             # Power on VM and wait for OS customization to complete
-            if (-not (_TestVMPowerState -vm $vm -PowerOnAfterCreation $PowerOnAfterCreation)) { 
+            if (-not (_TestVMPowerState -vm $vm -PowerOnAfterCreation $PowerOnAfterCreation)) {
                 _SetVMPowerState -vm $vm
 
                 # Wait for OS customization to complete if this is a newly created VM
@@ -251,7 +251,7 @@ function Set-TargetResource {
                 if ($updatedVMDisks -eq $true) {
                     _refreshHostStorageCache -vm $vm -Credential $GuestCredentials
                 }
-                
+
                 # Set guest disks
                 if (-not (_TestGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials)) {
                     _SetGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials
@@ -259,7 +259,7 @@ function Set-TargetResource {
             } else {
                 Write-Warning -Message 'VM is powered off. Skipping guest check'
             }
-            
+
             # Set VM Folder
             if ($VMFolder -ne [string]::empty) {
                 if (-Not (_TestVMFolder -VM $VM -VMFolder $VMFolder)) {
@@ -272,7 +272,7 @@ function Set-TargetResource {
                 foreach ($p in (ConvertFrom-Json -InputObject $Provisioners)) {
                     $testPath = "$PSScriptRoot\Provisioners\$($p.name)\Test.ps1"
                     if (Test-Path -Path $testPath) {
-                            
+
                         $params = $PSBoundParameters
                         $params.vm = $vm
                         $params.ProvOptions = $p.options
@@ -416,7 +416,7 @@ function Test-TargetResource {
     )
 
     # Connect to vCenter
-    $script:VCConnected = _ConnectTovCenter -vCenter $vCenter -Credential $vCenterCredentials    
+    $script:VCConnected = _ConnectTovCenter -vCenter $vCenter -Credential $vCenterCredentials
 
     $result = $true
 
@@ -449,19 +449,20 @@ function Test-TargetResource {
     $ramResult = _TestVMRAM -VM $vm -RAM $vRAM
     $match = if ( $ramResult) { 'MATCH' } else { 'MISMATCH' }
     Write-Verbose -Message "RAM: $match"
-    
+
     # CPU
     $cpuResult = _TestVMCPU -vm $vm -TotalvCPU $TotalvCPU -CoresPerSocket $CoresPerSocket
     $match = if ( $cpuResult) { 'MATCH' } else { 'MISMATCH' }
     Write-Verbose -Message "vCPU: $match"
-    
-   
+
+
     # Disks
     $vmDiskResult = _TestVMDisks -vm $vm -DiskSpec $Disks
     $match = if ( $vmDiskResult) { 'MATCH' } else { 'MISMATCH' }
     Write-Verbose -Message "VM Disks: $match"
 
     # Guest disks
+    $guestDiskResult = $true
     if ($VM.PowerState -eq 'PoweredOn') {
         _refreshHostStorageCache -vm $vm -Credential $GuestCredentials
         $guestDiskResult = _TestGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials
@@ -475,6 +476,7 @@ function Test-TargetResource {
     # TODO
 
     # Test VM folder
+    $folderResult = $true
     if ($VMFolder -ne [string]::Empty) {
         $folderResult = _TestVMFolder -VM $vm -VMFolder $VMFolder
         $match = if ( $folderResult) { 'MATCH' } else { 'MISMATCH' }
