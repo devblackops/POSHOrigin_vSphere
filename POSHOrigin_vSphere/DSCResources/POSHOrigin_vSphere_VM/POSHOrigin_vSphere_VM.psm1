@@ -508,12 +508,21 @@ function Test-TargetResource {
         }
     }
 
-    if (-not ($ramResult -and $cpuResult -and $vmDiskResult -and $guestDiskResult -and $powerResult -and $folderResult) -or
-        ($provisionerResults | Where-Object {$_ -ne $true })) {
+    _DisconnectFromvCenter -vCenter $vCenter
+    
+    if (-not ($ramResult -and $cpuResult -and $vmDiskResult -and $guestDiskResult -and $powerResult -and $folderResult)) {
+        Write-Debug -Message "One or more tests failed"
         return $false
     }
-
-    _DisconnectFromvCenter -vCenter $vCenter
+    
+    Write-Debug -Message 'Provisioner results:'
+    Write-Debug -Message ($provisionerResults | Format-List | Out-String)  
+    
+    if (($provisionerResults | Where-Object {$_ -ne $true }).Count -gt 0) {
+        Write-Verbose -Message "One or more provisioners failed tests"
+        return $false
+    }
+    
     return $true
 }
 

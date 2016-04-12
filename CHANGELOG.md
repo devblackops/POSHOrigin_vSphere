@@ -1,3 +1,9 @@
+## 1.1.13
+    * Fix bug in evaluating Chef provisioner
+
+## 1.1.12
+    * Change ConvertTo-Json depth parameter to 100 when converting POSHOorigin object into DSC configuration
+
 ## 1.1.11
     * Fix bad test logic when evaluating DSC resource
 

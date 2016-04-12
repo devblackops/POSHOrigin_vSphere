@@ -1,0 +1,103 @@
+[1mdiff --git a/CHANGELOG.md b/CHANGELOG.md[m
+[1mindex 0fc1fb3..65c3725 100644[m
+[1m--- a/CHANGELOG.md[m
+[1m+++ b/CHANGELOG.md[m
+[36m@@ -1,3 +1,9 @@[m
+[32m+[m[32m## 1.1.13[m
+[32m+[m[32m    * Fix bug in evaluating Chef provisioner[m
+[32m+[m
+[32m+[m[32m## 1.1.12[m
+[32m+[m[32m    * Change ConvertTo-Json depth parameter to 100 when converting POSHOorigin object into DSC configuration[m
+[32m+[m
+ ## 1.1.11[m
+     * Fix bad test logic when evaluating DSC resource[m
+ [m
+[1mdiff --git a/POSHOrigin_vSphere/DSCResources/POSHOrigin_vSphere_VM/Invoke.ps1 b/POSHOrigin_vSphere/DSCResources/POSHOrigin_vSphere_VM/Invoke.ps1[m
+[1mindex 047025f..61c59e4 100644[m
+[1m--- a/POSHOrigin_vSphere/DSCResources/POSHOrigin_vSphere_VM/Invoke.ps1[m
+[1m+++ b/POSHOrigin_vSphere/DSCResources/POSHOrigin_vSphere_VM/Invoke.ps1[m
+[36m@@ -22,7 +22,7 @@[m [mswitch ($type) {[m
+     'vm' {[m
+         $provJson = ''[m
+         if ($null -ne $Options.options.provisioners) {[m
+[31m-            $provJson = ConvertTo-Json -InputObject $Options.options.provisioners -Depth 999[m
+[32m+[m[32m            $provJson = ConvertTo-Json -InputObject $Options.options.provisioners -Depth 100[m
+         }[m
+ [m
+         if ($null -eq $provJson) {[m
+[36m@@ -43,9 +43,9 @@[m [mswitch ($type) {[m
+                 Cluster = $Options.options.Cluster[m
+                 VMFolder = $Options.options.VMFolder[m
+                 InitialDatastore = $Options.options.InitialDatastore[m
+[31m-                Disks = ConvertTo-Json -InputObject $Options.options.disks -Depth 999[m
+[32m+[m[32m                Disks = ConvertTo-Json -InputObject $Options.options.disks -Depth 100[m
+                 CustomizationSpec = $Options.options.CustomizationSpec[m
+[31m-                Networks = ConvertTo-Json -InputObject $Options.options.networks -Depth 999[m
+[32m+[m[32m                Networks = ConvertTo-Json -InputObject $Options.options.networks -Depth 100[m
+                 Provisioners = $provJson[m
+             }[m
+ [m
+[36m@@ -147,7 +147,7 @@[m [mswitch ($type) {[m
+ [m
+                 $provJson = [string]::empty[m
+                 if ($ResourceOptions.options.provisioners) {[m
+[31m-                    $provJson = ConvertTo-Json -InputObject $ResourceOptions.options.provisioners -Depth 999[m
+[32m+[m[32m                    $provJson = ConvertTo-Json -InputObject $ResourceOptions.options.provisioners -Depth 100[m
+                 }[m
+ [m
+                 if (-Not $provJson) {[m
+[1mdiff --git a/POSHOrigin_vSphere/DSCResources/POSHOrigin_vSphere_VM/POSHOrigin_vSphere_VM.psm1 b/POSHOrigin_vSphere/DSCResources/POSHOrigin_vSphere_VM/POSHOrigin_vSphere_VM.psm1[m
+[1mindex fdad77a..3a907b9 100644[m
+[1m--- a/POSHOrigin_vSphere/DSCResources/POSHOrigin_vSphere_VM/POSHOrigin_vSphere_VM.psm1[m
+[1m+++ b/POSHOrigin_vSphere/DSCResources/POSHOrigin_vSphere_VM/POSHOrigin_vSphere_VM.psm1[m
+[36m@@ -508,12 +508,21 @@[m [mfunction Test-TargetResource {[m
+         }[m
+     }[m
+ [m
+[31m-    if (-not ($ramResult -and $cpuResult -and $vmDiskResult -and $guestDiskResult -and $powerResult -and $folderResult) -or[m
+[31m-        ($provisionerResults | Where-Object {$_ -ne $true })) {[m
+[32m+[m[32m    _DisconnectFromvCenter -vCenter $vCenter[m
+[32m+[m[41m    [m
+[32m+[m[32m    if (-not ($ramResult -and $cpuResult -and $vmDiskResult -and $guestDiskResult -and $powerResult -and $folderResult)) {[m
+[32m+[m[32m        Write-Debug -Message "One or more tests failed"[m
+         return $false[m
+     }[m
+[31m-[m
+[31m-    _DisconnectFromvCenter -vCenter $vCenter[m
+[32m+[m[41m    [m
+[32m+[m[32m    Write-Debug -Message 'Provisioner results:'[m
+[32m+[m[32m    Write-Debug -Message ($provisionerResults | Format-List | Out-String)[m[41m  [m
+[32m+[m[41m    [m
+[32m+[m[32m    if (($provisionerResults | Where-Object {$_ -ne $true }).Count -gt 0) {[m
+[32m+[m[32m        Write-Verbose -Message "One or more provisioners failed tests"[m
+[32m+[m[32m        return $false[m
+[32m+[m[32m    }[m
+[32m+[m[41m    [m
+     return $true[m
+ }[m
+ [m
+[1mdiff --git a/POSHOrigin_vSphere/DSCResources/POSHOrigin_vSphere_VM/Provisioners/Chef/Test.ps1 b/POSHOrigin_vSphere/DSCResources/POSHOrigin_vSphere_VM/Provisioners/Chef/Test.ps1[m
+[1mindex db22adc..bd3f866 100644[m
+[1m--- a/POSHOrigin_vSphere/DSCResources/POSHOrigin_vSphere_VM/Provisioners/Chef/Test.ps1[m
+[1m+++ b/POSHOrigin_vSphere/DSCResources/POSHOrigin_vSphere_VM/Provisioners/Chef/Test.ps1[m
+[36m@@ -106,6 +106,8 @@[m [mprocess {[m
+                     if ($diffJson -ne $refJson) {[m
+                         Write-Verbose -Message "Chef attributes: MISMATCH"[m
+                         $attributeResult = $false[m
+[32m+[m[32m                    } else {[m
+[32m+[m[32m                        Write-Verbose -Message "Chef attributes: MATCH"[m
+                     }[m
+                 } else {[m
+                     $chefNodeResult = $false[m
+[1mdiff --git a/POSHOrigin_vSphere/POSHOrigin_vSphere.psd1 b/POSHOrigin_vSphere/POSHOrigin_vSphere.psd1[m
+[1mindex 8638c6f..1b20f0e 100644[m
+[1m--- a/POSHOrigin_vSphere/POSHOrigin_vSphere.psd1[m
+[1m+++ b/POSHOrigin_vSphere/POSHOrigin_vSphere.psd1[m
+[36m@@ -1,6 +1,6 @@[m
+ @{[m
+ RootModule = 'POSHOrigin_vSphere.psm1'[m
+[31m-ModuleVersion = '1.1.11'[m
+[32m+[m[32mModuleVersion = '1.1.13'[m
+ GUID = 'af4099cf-30a1-44eb-8c74-a10948245227'[m
+ Author = 'Brandon Olin'[m
+ Copyright = '(c) 2016 Brandon Olin. All rights reserved.'[m

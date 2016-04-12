@@ -22,7 +22,7 @@ switch ($type) {
     'vm' {
         $provJson = ''
         if ($null -ne $Options.options.provisioners) {
-            $provJson = ConvertTo-Json -InputObject $Options.options.provisioners -Depth 999
+            $provJson = ConvertTo-Json -InputObject $Options.options.provisioners -Depth 100
         }
 
         if ($null -eq $provJson) {
@@ -43,9 +43,9 @@ switch ($type) {
                 Cluster = $Options.options.Cluster
                 VMFolder = $Options.options.VMFolder
                 InitialDatastore = $Options.options.InitialDatastore
-                Disks = ConvertTo-Json -InputObject $Options.options.disks -Depth 999
+                Disks = ConvertTo-Json -InputObject $Options.options.disks -Depth 100
                 CustomizationSpec = $Options.options.CustomizationSpec
-                Networks = ConvertTo-Json -InputObject $Options.options.networks -Depth 999
+                Networks = ConvertTo-Json -InputObject $Options.options.networks -Depth 100
                 Provisioners = $provJson
             }
 
@@ -147,7 +147,7 @@ switch ($type) {
 
                 $provJson = [string]::empty
                 if ($ResourceOptions.options.provisioners) {
-                    $provJson = ConvertTo-Json -InputObject $ResourceOptions.options.provisioners -Depth 999
+                    $provJson = ConvertTo-Json -InputObject $ResourceOptions.options.provisioners -Depth 100
                 }
 
                 if (-Not $provJson) {

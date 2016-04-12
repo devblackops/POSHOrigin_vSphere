@@ -106,6 +106,8 @@ process {
                     if ($diffJson -ne $refJson) {
                         Write-Verbose -Message "Chef attributes: MISMATCH"
                         $attributeResult = $false
+                    } else {
+                        Write-Verbose -Message "Chef attributes: MATCH"
                     }
                 } else {
                     $chefNodeResult = $false
