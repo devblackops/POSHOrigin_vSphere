@@ -104,10 +104,10 @@ process {
                     $refJson = $chefOptions.attributes | ConvertTo-Json
                     $diffJson = $chefNode.normal | ConvertTo-Json
 
-                    Write-Verbose -Message 'Ref'
-                    Write-Verbose -Message $refJson
-                    Write-Verbose -Message 'Diff'
-                    Write-Verbose -Message $diffJson
+                    Write-Debug -Message 'Ref'
+                    Write-Debug -Message $refJson
+                    Write-Debug -Message 'Diff'
+                    Write-Debug -Message $diffJson
 
                     if ($diffJson -ne $refJson) {
                         Write-Verbose -Message "Chef attributes: MISMATCH"
