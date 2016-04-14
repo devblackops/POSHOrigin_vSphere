@@ -95,14 +95,20 @@ process {
                     # so add that to the reference if isn't doesn't already exist
                     $attributeResult = $true
                     if (-Not $ChefOptions.attributes) {
-                        $chefOptions | Add-Member -MemberType NoteProperty -Name attributes -Value @{tags = @()}
+                        $chefOptions | Add-Member -MemberType NoteProperty -Name attributes -Value @{tags = @{}}
                     } else {
                         if (-Not $ChefOptions.attributes.tags) {
-                            $chefOptions.attributes | Add-Member -MemberType NoteProperty -Name tags -Value @()
+                            $chefOptions.attributes | Add-Member -MemberType NoteProperty -Name tags -Value @{}
                         }
                     }
                     $refJson = $chefOptions.attributes | ConvertTo-Json
                     $diffJson = $chefNode.normal | ConvertTo-Json
+
+                    Write-Verbose -Message 'Ref'
+                    Write-Verbose -Message $refJson
+                    Write-Verbose -Message 'Diff'
+                    Write-Verbose -Message $diffJson
+
                     if ($diffJson -ne $refJson) {
                         Write-Verbose -Message "Chef attributes: MISMATCH"
                         $attributeResult = $false

@@ -1,3 +1,6 @@
+## 1.1.14
+    * Fix bug in evaluating Chef provisioner attributes
+
 ## 1.1.13
     * Fix bug in evaluating Chef provisioner
 
