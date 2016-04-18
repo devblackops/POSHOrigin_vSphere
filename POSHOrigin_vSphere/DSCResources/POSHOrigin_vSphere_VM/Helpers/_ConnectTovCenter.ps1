@@ -6,8 +6,8 @@ function _ConnectTovCenter {
     )
 
     if ($null -ne (Get-Module -Name VMware.VimAutomation* -ListAvailable -ErrorAction SilentlyContinue -Verbose:$false)) {
-        Import-Module Vmware.VimAutomation.Sdk -Verbose:$false
         Import-Module VMware.VimAutomation.Core -Verbose:$false
+        Import-Module Vmware.VimAutomation.Sdk -Verbose:$false
         Import-Module VMware.VimAutomation.Vds -Verbose:$false
     } else {
         Throw 'VMware PowerCLI modules do not appear to be installed on this system.'
