@@ -1,5 +1,7 @@
 ## 1.1.14
     * Fix bug in evaluating Chef provisioner attributes
+    * If VM has more than one IP address as reported by VM tools, ping each one and return the first IP that responds.
+      That will be used by subsequent functions when interacting with the guest OS.
 
 ## 1.1.13
     * Fix bug in evaluating Chef provisioner

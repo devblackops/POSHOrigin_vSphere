@@ -19,7 +19,8 @@ process {
 
         # Get target IP address
         $t = Get-VM -Id $options.vm.Id -Verbose:$false -Debug:$false
-        $ip = $t.Guest.IPAddress | Where-Object { ($_ -notlike '169.*') -and ( $_ -notlike '*:*') } | Select-Object -First 1
+        #$ip = $t.Guest.IPAddress | Where-Object { ($_ -notlike '169.*') -and ( $_ -notlike '*:*') } | Select-Object -First 1
+        $ip = _GetGuestVMIPAddress -VM $t
 
         if ($null -ne $ip -and $ip -ne [string]::Empty) {
             $chefSvc = Invoke-Command -ComputerName $ip -Credential $Options.GuestCredentials -ScriptBlock { Get-Service -Name chef-client -ErrorAction SilentlyContinue } -Verbose:$false
@@ -95,10 +96,10 @@ process {
                     # so add that to the reference if isn't doesn't already exist
                     $attributeResult = $true
                     if (-Not $ChefOptions.attributes) {
-                        $chefOptions | Add-Member -MemberType NoteProperty -Name attributes -Value @{tags = @{}}
+                        $chefOptions | Add-Member -MemberType NoteProperty -Name attributes -Value @{tags = @()}
                     } else {
                         if (-Not $ChefOptions.attributes.tags) {
-                            $chefOptions.attributes | Add-Member -MemberType NoteProperty -Name tags -Value @{}
+                            $chefOptions.attributes | Add-Member -MemberType NoteProperty -Name tags -Value @()
                         }
                     }
                     $refJson = $chefOptions.attributes | ConvertTo-Json

@@ -15,7 +15,8 @@ process {
         $chefOptions = ($provOptions | Where-Object {$_.name -eq 'chef'}).options
 
         $t = Get-VM -Id $Options.vm.Id -Verbose:$false -Debug:$false
-        $ip = $t.Guest.IPAddress | Where-Object { ($_ -notlike '169.*') -and ( $_ -notlike '*:*') } | Select-Object -First 1
+        #$ip = $t.Guest.IPAddress | Where-Object { ($_ -notlike '169.*') -and ( $_ -notlike '*:*') } | Select-Object -First 1
+        $ip = _GetGuestVMIPAddress -VM $t
         if ($null -ne $ip -and $ip -ne [string]::Empty) {
 
             $chefSvc = Invoke-Command -ComputerName $ip -Credential $Options.GuestCredentials -ScriptBlock { Get-Service -Name chef-client -ErrorAction SilentlyContinue } -Verbose:$false
