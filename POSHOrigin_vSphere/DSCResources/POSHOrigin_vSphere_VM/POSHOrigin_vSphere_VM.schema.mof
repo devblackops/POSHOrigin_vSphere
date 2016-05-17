@@ -1,4 +1,4 @@
-﻿
+
 [ClassVersion("1.0"), FriendlyName("VM")]
 class POSHOrigin_vSphere_VM : OMI_BaseResource
 {
