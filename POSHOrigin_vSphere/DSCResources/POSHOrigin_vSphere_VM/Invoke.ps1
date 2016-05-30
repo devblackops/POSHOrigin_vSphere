@@ -42,6 +42,7 @@ switch ($type) {
                 Datacenter = $Options.options.Datacenter
                 Cluster = $Options.options.Cluster
                 VMFolder = $Options.options.VMFolder
+                Tags = $Options.options.Tags
                 InitialDatastore = $Options.options.InitialDatastore
                 Disks = ConvertTo-Json -InputObject $Options.options.disks -Depth 100
                 CustomizationSpec = $Options.options.CustomizationSpec
@@ -166,6 +167,7 @@ switch ($type) {
                     Datacenter = $ResourceOptions.options.Datacenter
                     Cluster = $ResourceOptions.options.Cluster
                     VMFolder = $ResourceOptions.options.VMFolder
+                    Tags = ConvertTo-Json -InputObject $ResourceOptions.options.Tags
                     InitialDatastore = $ResourceOptions.options.InitialDatastore
                     Disks = ConvertTo-Json -InputObject $ResourceOptions.options.disks
                     CustomizationSpec = $ResourceOptions.options.CustomizationSpec

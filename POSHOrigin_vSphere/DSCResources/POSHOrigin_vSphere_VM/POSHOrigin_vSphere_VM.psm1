@@ -48,6 +48,9 @@ function Get-TargetResource {
 
         [System.String]
         $CustomizationSpec,
+        
+        [System.String]
+        $Tags,
 
         [System.Management.Automation.PSCredential]
         $GuestCredentials,
@@ -143,6 +146,9 @@ function Set-TargetResource {
 
         [System.String]
         $CustomizationSpec,
+        
+        [System.String]
+        $Tags,
 
         [System.Management.Automation.PSCredential]
         $GuestCredentials,
@@ -386,6 +392,9 @@ function Test-TargetResource {
 
         [System.String]
         $CustomizationSpec,
+        
+        [System.String]
+        $Tags,
 
         [System.Management.Automation.PSCredential]
         $GuestCredentials,
@@ -487,6 +496,11 @@ function Test-TargetResource {
     $powerResult = _TestVMPowerState -vm $vm -PowerOnAfterCreation $PowerOnAfterCreation
     $match = if ( $powerResult) { 'MATCH' } else { 'MISMATCH' }
     Write-Verbose -Message "Power state: $match"
+
+    # Tags
+    if ($PSBoundParameters.ContainsKey('Tags')) {                
+        Write-Verbose ($Tags)        
+    }
 
     #endregion
 
