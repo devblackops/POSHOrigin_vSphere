@@ -249,11 +249,13 @@ function Set-TargetResource {
                     if ($PSBoundParameters.ContainsKey('vApp')) {
                         $params.vApp = $vApp
                     }
-                    
+                     
                     $vm = _CreateVM @params
                     if ($null -ne $vm) {
                         Write-Verbose -Message 'VM created successfully'
                         $newVm = $true
+                    } else {
+                        return
                     }
 
                     # Set NICs
@@ -265,72 +267,74 @@ function Set-TargetResource {
                     }
                 }
             }
-
-            # Set RAM
-            if (-not (_TestVMRAM -vm $vm -RAM $vRAM)) {
-                _SetVMRAM -vm $vm -RAM $vRAM
-            }
-
-            # Set vCPU
-            if (-not (_TestVMCPU -vm $vm -TotalvCPU $TotalvCPU -CoresPerSocket $CoresPerSocket)) {
-                _SetVMCPU -vm $vm -TotalvCPU $TotalvCPU -CoresPerSocket $CoresPerSocket
-            }
-
-            # Set disks
-            if (-not (_TestVMDisks -vm $vm -DiskSpec $Disks)) {
-                $updatedVMDisks = _SetVMDisks -vm $vm -DiskSpec $Disks
-            }
-
-            # Power on VM and wait for OS customization to complete
-            if (-not (_TestVMPowerState -vm $vm -PowerOnAfterCreation $PowerOnAfterCreation)) {
-                _SetVMPowerState -vm $vm
-
-                # Wait for OS customization to complete if this is a newly created VM
-                if ($newVM -eq $true) {
-                    _WaitForGuestCustomization -vm $vm
+            
+            if ($vm) {
+                # Set RAM
+                if (-not (_TestVMRAM -vm $vm -RAM $vRAM)) {
+                    _SetVMRAM -vm $vm -RAM $vRAM
                 }
 
-                _WaitForVMTools -vm $vm -Credential $GuestCredentials
-            }
-
-            $vm = Get-VM -Name $Name -Verbose:$false -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($VM.PowerState -eq 'PoweredOn') {
-                if ($updatedVMDisks -eq $true) {
-                    _refreshHostStorageCache -vm $vm -Credential $GuestCredentials
+                # Set vCPU
+                if (-not (_TestVMCPU -vm $vm -TotalvCPU $TotalvCPU -CoresPerSocket $CoresPerSocket)) {
+                    _SetVMCPU -vm $vm -TotalvCPU $TotalvCPU -CoresPerSocket $CoresPerSocket
                 }
 
-                # Set guest disks
-                if (-not (_TestGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials)) {
-                    _SetGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials
+                # Set disks
+                if (-not (_TestVMDisks -vm $vm -DiskSpec $Disks)) {
+                    $updatedVMDisks = _SetVMDisks -vm $vm -DiskSpec $Disks
                 }
-            } else {
-                Write-Warning -Message 'VM is powered off. Skipping guest check'
-            }
 
-            # Set VM Folder
-            if ($VMFolder -ne [string]::empty) {
-                if (-Not (_TestVMFolder -VM $VM -VMFolder $VMFolder)) {
-                    _MoveVM -VM $VM -VMFolder $VMFolder
+                # Power on VM and wait for OS customization to complete
+                if (-not (_TestVMPowerState -vm $vm -PowerOnAfterCreation $PowerOnAfterCreation)) {
+                    _SetVMPowerState -vm $vm
+
+                    # Wait for OS customization to complete if this is a newly created VM
+                    if ($newVM -eq $true) {
+                        _WaitForGuestCustomization -vm $vm
+                    }
+
+                    _WaitForVMTools -vm $vm -Credential $GuestCredentials
                 }
-            }
+                
+                $vm = Get-VM -Name $Name -Verbose:$false -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($VM.PowerState -eq 'PoweredOn') {
+                    if ($updatedVMDisks -eq $true) {
+                        _refreshHostStorageCache -vm $vm -Credential $GuestCredentials
+                    }
 
-            # Run any provisioners
-            if ($Provisioners -ne [string]::Empty) {
-                foreach ($p in (ConvertFrom-Json -InputObject $Provisioners)) {
-                    $testPath = "$PSScriptRoot\Provisioners\$($p.name)\Test.ps1"
-                    if (Test-Path -Path $testPath) {
+                    # Set guest disks
+                    if (-not (_TestGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials)) {
+                        _SetGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials
+                    }
+                } else {
+                    Write-Warning -Message 'VM is powered off. Skipping guest check'
+                }
 
-                        $params = $PSBoundParameters
-                        $params.vm = $vm
-                        $params.ProvOptions = $p.options
+                # Set VM Folder
+                if ($VMFolder -ne [string]::empty) {
+                    if (-Not (_TestVMFolder -VM $VM -VMFolder $VMFolder)) {
+                        _MoveVM -VM $VM -VMFolder $VMFolder
+                    }
+                }
 
-                        $provisionerResult = (& $testPath $params)
-                        if ($provisionerResult -ne $true) {
-                            $provPath = "$PSScriptRoot\Provisioners\$($p.name)\Provision.ps1"
-                            if (Test-Path -Path $testPath) {
-                                $params = $PSBoundParameters
-                                $params.vm = $vm
-                                (& $provPath $params)
+                # Run any provisioners
+                if ($Provisioners -ne [string]::Empty) {
+                    foreach ($p in (ConvertFrom-Json -InputObject $Provisioners)) {
+                        $testPath = "$PSScriptRoot\Provisioners\$($p.name)\Test.ps1"
+                        if (Test-Path -Path $testPath) {
+
+                            $params = $PSBoundParameters
+                            $params.vm = $vm
+                            $params.ProvOptions = $p.options
+
+                            $provisionerResult = (& $testPath $params)
+                            if ($provisionerResult -ne $true) {
+                                $provPath = "$PSScriptRoot\Provisioners\$($p.name)\Provision.ps1"
+                                if (Test-Path -Path $testPath) {
+                                    $params = $PSBoundParameters
+                                    $params.vm = $vm
+                                    (& $provPath $params)
+                                }
                             }
                         }
                     }
