@@ -9,7 +9,7 @@ function _CreateVM {
         [ValidateNotNullOrEmpty()]
         [string]$VMTemplate,
 
-        [Parameter(Mandatory, ParameterSet ='cluster')]
+        [Parameter(Mandatory, ParameterSetName ='cluster')]
         [ValidateNotNullOrEmpty()]
         [string]$Cluster,
         
