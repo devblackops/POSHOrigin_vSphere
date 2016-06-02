@@ -20,7 +20,7 @@ function _SetVMNICs {
     $success = $false
     $specClone = $null
                     
-    $netConfigs = @(ConvertFrom-Json -InputObject $NICSpec)
+    $netConfigs = $NICSpec | ConvertFrom-Json
     Write-Debug "Configuration NIC count: $($netConfigs.count)"
 
     $vmNICs = @($vm | Get-NetworkAdapter -Verbose:$false -Debug:$false)
