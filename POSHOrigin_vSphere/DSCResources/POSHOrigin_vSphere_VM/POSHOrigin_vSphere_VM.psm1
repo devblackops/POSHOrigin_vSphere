@@ -72,6 +72,15 @@ function Get-TargetResource {
 
         [System.String]
         $Cluster,
+        
+        [System.String]
+        $ResourcePool,
+
+        [System.String]
+        $VMHost,
+        
+        [System.String]
+        $vApp,
 
         [System.String]
         $Provisioners
@@ -96,6 +105,9 @@ function Get-TargetResource {
         Datacenter =$Datacenter
         InitialDatastore = $InitialDatastore
         Cluster = $Cluster
+        ResourcePool = $ResourcePool
+        VMHost = $VMHost
+        vApp = $vApp
         Provisioners = $Provisioners
     }
 
@@ -167,6 +179,15 @@ function Set-TargetResource {
 
         [System.String]
         $Cluster,
+        
+        [System.String]
+        $ResourcePool,
+        
+        [System.String]
+        $VMHost,
+        
+        [System.String]
+        $vApp,
 
         [System.String]
         $Provisioners
@@ -189,33 +210,59 @@ function Set-TargetResource {
 
                 $diskSpec = ConvertFrom-Json -InputObject $Disks
                 $format = $diskSpec[0].Format
-
-                $params = @{
-                    Name = $Name
-                    VMTemplate = $VMTemplate
-                    Cluster = $Cluster
-                    InitialDatastore = $InitialDatastore
-                    DiskFormat = $format
-                    NICSpec = $Networks
-                    CustomizationSpec = $CustomizationSpec
-                    #IPAMFqdn = $IPAMFqdn
-                    #IPAMCredentials =  $IPAMCredentials
+                
+                $continue = $true
+                
+                # Let's validate that only ONE of the following options was specified for the VM location
+                # Cluster, ResourcePool, VMHost, vApp                
+                $search = @('Cluster', 'ResourcePool', 'VMHost', 'vApp')
+                if (($PSBoundParameters.Keys | Where-Object {$_ -in $search}).Count -gt 1) {
+                    $continue = $false
+                    $msg = "More than one option was specified for VM location. Please choose ONE of the following options"
+                    $msg += "Cluster, ResourcePool, VMHost, or vApp"
+                    Write-Error -Message $msg   
                 }
-                if ($VMFolder -ne [string]::empty) {
-                    $params.Folder = $VMFolder
-                }
-                $vm = _CreateVM @params
-                if ($null -ne $vm) {
-                    Write-Verbose -Message 'VM created successfully'
-                    $newVm = $true
-                }
+                                              
+                if ($continue) {
+                    $params = @{
+                        Name = $Name
+                        VMTemplate = $VMTemplate
+                        InitialDatastore = $InitialDatastore
+                        DiskFormat = $format
+                        NICSpec = $Networks
+                        CustomizationSpec = $CustomizationSpec
+                        #IPAMFqdn = $IPAMFqdn
+                        #IPAMCredentials =  $IPAMCredentials
+                    }
+                    if ($VMFolder -ne [string]::empty) {
+                        $params.Folder = $VMFolder
+                    }                    
+                    if ($PSBoundParameters.ContainsKey('Cluster')) {
+                        $params.Cluster = $Cluster
+                    }
+                    if ($PSBoundParameters.ContainsKey('ResourcePool')) {
+                        $params.ResourcePool = $ResourcePool
+                    }
+                    if ($PSBoundParameters.ContainsKey('VMHost')) {
+                        $params.VMHost = $VMHost
+                    }
+                    if ($PSBoundParameters.ContainsKey('vApp')) {
+                        $params.vApp = $vApp
+                    }
+                    
+                    $vm = _CreateVM @params
+                    if ($null -ne $vm) {
+                        Write-Verbose -Message 'VM created successfully'
+                        $newVm = $true
+                    }
 
-                # Set NICs
-                $setNICResult = $false
-                $setNICResult = _SetVMNICs -vm $vm -NICSpec $Networks -CustomizationSpec $CustomizationSpec -IPAMFqdn $IPAMFqdn -IPAMCredentials $IPAMCredentials
+                    # Set NICs
+                    $setNICResult = $false
+                    $setNICResult = _SetVMNICs -vm $vm -NICSpec $Networks -CustomizationSpec $CustomizationSpec -IPAMFqdn $IPAMFqdn -IPAMCredentials $IPAMCredentials
 
-                if ($setNICResult -eq $false) {
-                    throw 'Failed to set NICs after VM creation. Aborting...'
+                    if ($setNICResult -eq $false) {
+                        throw 'Failed to set NICs after VM creation. Aborting...'
+                    }
                 }
             }
 
@@ -410,6 +457,15 @@ function Test-TargetResource {
 
         [System.String]
         $Cluster,
+        
+        [System.String]
+        $ResourcePool,
+        
+        [System.String]
+        $VMHost,
+        
+        [System.String]
+        $vApp,
 
         [System.String]
         $Provisioners
