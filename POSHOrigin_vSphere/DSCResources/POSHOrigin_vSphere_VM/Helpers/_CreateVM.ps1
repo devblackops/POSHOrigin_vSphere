@@ -134,11 +134,12 @@ function _CreateVM {
 
         # Verify any IP addresses defined in configuration are not already in use
         # and resolve network portgroups
-        $netConfigs = @(ConvertFrom-Json -InputObject $NICSpec)
+        $netConfigs = $NICSpec | ConvertFrom-Json
         foreach ($netConfig in $netConfigs) {
-
+            
             # Verify the IP address(s) that we're about to set are not already in use
-            if ($netConfig.IPAddress) {
+            if ($netConfig.IPAddress) {                
+                Write-Debug -Message "Pinging $($netConfig.IPAddress)"                
                 $pingable = Test-Connection -ComputerName $netConfig.IPAddress -Count 2 -Quiet
                 if ($pingable) {
                     Write-Error -Message "$($netConfig.IPAddress) appears to already be in use."
