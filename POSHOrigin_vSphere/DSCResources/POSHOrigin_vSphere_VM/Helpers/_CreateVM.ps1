@@ -104,7 +104,7 @@ function _CreateVM {
                     $continue = $false
                 }
             }
-        }        
+        }
 
         # Resolve datastore / datastore cluster
         $datastore = Get-Datastore -Name $InitialDatastore -verbose:$false -ErrorAction SilentlyContinue | Select-Object -First 1
