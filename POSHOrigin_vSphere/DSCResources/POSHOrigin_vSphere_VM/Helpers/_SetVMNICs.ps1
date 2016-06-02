@@ -125,10 +125,17 @@ function _SetVMNICs {
                             IpMode = 'UseStaticIp'
                             IpAddress = $netConfig.IPAddress
                             SubnetMask = $netConfig.SubnetMask
-                            DefaultGateway = $netConfig.DefaultGateway
-                            Dns = $netConfig.DNSServers
+                            #DefaultGateway = $netConfig.DefaultGateway
+                            #Dns = $netConfig.DNSServers
                             Verbose = $false
                         }
+                        if ($netConfig.DefaultGateway) {
+                            $params.DefaultGateway = $netConfig.DefaultGateway
+                        }
+                        if ($netConfig.DNSServers) {
+                            $params.Dns = $netConfig.DNSServers
+                        }                        
+                        
                         if ($vmNIC -ne $null) {
                             $params.NetworkAdapterMac = $vmNic.MacAddress
                         }
