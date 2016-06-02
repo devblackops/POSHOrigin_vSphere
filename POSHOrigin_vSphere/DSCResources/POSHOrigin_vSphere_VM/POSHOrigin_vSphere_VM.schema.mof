@@ -22,5 +22,8 @@ class POSHOrigin_vSphere_VM : OMI_BaseResource
     [Write] String Datacenter;
     [Write] String InitialDatastore;
     [Write] String Cluster;
+    [Write] String ResourcePool;
+    [Write] String VMHost;
+    [Write] String vApp;
     [Write] String Provisioners;
 };

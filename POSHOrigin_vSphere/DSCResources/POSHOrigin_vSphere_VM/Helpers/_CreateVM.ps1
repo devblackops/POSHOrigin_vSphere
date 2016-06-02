@@ -1,5 +1,5 @@
 function _CreateVM {
-    [cmdletbinding()]
+    [cmdletbinding(DefaultParameterSetName='cluster')]
     param (
         [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
@@ -9,9 +9,21 @@ function _CreateVM {
         [ValidateNotNullOrEmpty()]
         [string]$VMTemplate,
 
-        [Parameter(Mandatory)]
+        [Parameter(Mandatory, ParameterSetName ='cluster')]
         [ValidateNotNullOrEmpty()]
         [string]$Cluster,
+        
+        [Parameter(Mandatory, ParameterSetName = 'resourcepool')]
+        [ValidateNotNullOrEmpty()]
+        [string]$ResourcePool,
+        
+        [Parameter(Mandatory, ParameterSetName = 'vmhost')]
+        [ValidateNotNullOrEmpty()]
+        [string]$VMHost,
+        
+        [Parameter(Mandatory, ParameterSetName = 'vapp')]
+        [ValidateNotNullOrEmpty()]
+        [string]$vApp,
 
         [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
@@ -50,18 +62,47 @@ function _CreateVM {
             Write-Error -Message "Unable to resolve template $VMTemplate"
             $continue = $false
         }
-
-        # Resolve cluster
-        $clus = Get-Cluster -Name $Cluster -verbose:$false -ErrorAction SilentlyContinue | Select-Object -First 1
-        if ($clus -ne $null) { 
-            Write-Debug -Message "Cluster: $($clus.Name)"
-        } else {
-            $clus = Get-VMHost -Name $Cluster -Verbose:$false -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($null -ne $clus) {
-                Write-Debug -Message "VMHost: $($clus.Name)"
-            } else {
-                Write-Error -Message "Unable to resolve cluster or VM Host [$Cluster]"
-                $continue = $false
+        
+        switch ($PSCmdlet.ParameterSetName) {
+            'cluster' {
+                # Resolve cluster
+                $viContainer = Get-Cluster -Name $Cluster -Verbose:$false -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($viContainer -ne $null) { 
+                    Write-Debug -Message "Cluster: $($viContainer.Name)"
+                } else {
+                    Write-Error -Message "Unable to resolve cluster [$Cluster]"
+                    $continue = $false
+                }
+            }
+            'vmhost' {
+                # Resolve VM host
+                $viContainer = Get-VMHost -Name $VMHost -Verbose:$false -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($null -ne $viContainer) {
+                    Write-Debug -Message "VMHost: $($viContainer.Name)"
+                } else {
+                    Write-Error -Message "Unable to resolve VM host [$VMHost]"
+                    $continue = $false
+                }
+            }
+            'resourcepool' {
+                # Resolve VM host
+                $viContainer = Get-ResourcePool -Name $ResourcePool -Verbose:$false -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($null -ne $viContainer) {
+                    Write-Debug -Message "Resource Pool: $($viContainer.Name)"
+                } else {
+                    Write-Error -Message "Unable to resolve resource pool [$ResourcePool]"
+                    $continue = $false
+                }
+            }
+            'vapp' {
+                # Resolve vApp
+                $viContainer = Get-VApp -Name $vApp -Verbose:$false -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($null -ne $viContainer) {
+                    Write-Debug -Message "vApp: $($viContainer.Name)"
+                } else {
+                    Write-Error -Message "Unable to resolve vApp [$vApp]"
+                    $continue = $false
+                }
             }
         }
 
@@ -93,11 +134,12 @@ function _CreateVM {
 
         # Verify any IP addresses defined in configuration are not already in use
         # and resolve network portgroups
-        $netConfigs = @(ConvertFrom-Json -InputObject $NICSpec)
+        $netConfigs = $NICSpec | ConvertFrom-Json
         foreach ($netConfig in $netConfigs) {
-
+            
             # Verify the IP address(s) that we're about to set are not already in use
-            if ($netConfig.IPAddress) {
+            if ($netConfig.IPAddress) {                
+                Write-Debug -Message "Pinging $($netConfig.IPAddress)"                
                 $pingable = Test-Connection -ComputerName $netConfig.IPAddress -Count 2 -Quiet
                 if ($pingable) {
                     Write-Error -Message "$($netConfig.IPAddress) appears to already be in use."
@@ -153,7 +195,7 @@ function _CreateVM {
                 Template = $template
                 Datastore = $datastore
                 #DiskStorageFormat = $diskFormat
-                ResourcePool = $clus
+                ResourcePool = $viContainer
                 RunAsync = $true
                 Verbose = $false
                 Confirm = $false

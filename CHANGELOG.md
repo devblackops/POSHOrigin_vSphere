@@ -1,3 +1,7 @@
+## 1.2.0
+    * Add support for deploying VMs into a resource pool, directly to a VM host, order to a vApp.
+    * Fix bug with testing IP connectivity prior to creating a VM, when that VM has multiple NICs defined.
+
 ## 1.1.14
     * Fix bug in evaluating Chef provisioner attributes
     * If VM has more than one IP address as reported by VM tools, ping each one and return the first IP that responds.
