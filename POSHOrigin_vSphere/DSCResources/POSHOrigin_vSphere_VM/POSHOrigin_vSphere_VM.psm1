@@ -594,7 +594,7 @@ function Test-TargetResource {
 
     _DisconnectFromvCenter -vCenter $vCenter
     
-    if (-not ($ramResult -and $cpuResult -and $vmDiskResult -and $guestDiskResult -and $powerResult -and $folderResult)) {
+    if (-not ($ramResult -and $cpuResult -and $vmDiskResult -and $guestDiskResult -and $powerResult -and $folderResult -and $tagResult)) {
         Write-Debug -Message "One or more tests failed"
         return $false
     }
