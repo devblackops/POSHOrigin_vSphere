@@ -240,7 +240,7 @@ function Set-TargetResource {
                         #IPAMFqdn = $IPAMFqdn
                         #IPAMCredentials =  $IPAMCredentials
                     }
-                    if ($VMFolder -ne [string]::empty) {
+                    if ($PSBoundParameters.ContainsKey('VMFolder')) {
                         $params.Folder = $VMFolder
                     }                    
                     if ($PSBoundParameters.ContainsKey('Cluster')) {
@@ -317,14 +317,21 @@ function Set-TargetResource {
                 }
 
                 # Set VM Folder
-                if ($VMFolder -ne [string]::empty) {
+                if ($PSBoundParameters.ContainsKey('VMFolder')) {
                     if (-Not (_TestVMFolder -VM $VM -VMFolder $VMFolder)) {
                         _MoveVM -VM $VM -VMFolder $VMFolder
                     }
                 }
+                
+                # Set tags
+                if ($PSBoundParameters.ContainsKey('Tags')) {                    
+                    if (-not (_TestTags -VM $VM -Tags $Tags)) {                        
+                        _SetTags -VM $VM -Tags $Tags
+                    }
+                }
 
                 # Run any provisioners
-                if ($Provisioners -ne [string]::Empty) {
+                if ($PSBoundParameters.ContainsKey('Provisioners')) {
                     foreach ($p in (ConvertFrom-Json -InputObject $Provisioners)) {
                         $testPath = "$PSScriptRoot\Provisioners\$($p.name)\Test.ps1"
                         if (Test-Path -Path $testPath) {
@@ -350,7 +357,7 @@ function Set-TargetResource {
             Write-Verbose '[Ensure == Absent] Beginning deprovisioning process'
 
             # Run through any provisioners we have defined and execute the 'deprovision' script
-            if ($Provisioners -ne [string]::Empty) {
+            if ($PSBoundParameters.ContainsKey('Provisioners')) {
                 foreach ($p in (ConvertFrom-Json -InputObject $Provisioners)) {
                     $testPath = "$PSScriptRoot\Provisioners\$($p.name)\Test.ps1"
                     if (Test-Path -Path $testPath) {
@@ -546,7 +553,7 @@ function Test-TargetResource {
 
     # Test VM folder
     $folderResult = $true
-    if ($VMFolder -ne [string]::Empty) {
+    if ($PSBoundParameters.ContainsKey('VMFolder')) {
         $folderResult = _TestVMFolder -VM $vm -VMFolder $VMFolder
         $match = if ( $folderResult) { 'MATCH' } else { 'MISMATCH' }
         Write-Verbose -Message "VM Folder: $match"
@@ -558,15 +565,18 @@ function Test-TargetResource {
     Write-Verbose -Message "Power state: $match"
 
     # Tags
-    if ($PSBoundParameters.ContainsKey('Tags')) {                
-        Write-Verbose ($Tags)        
+    $tagResult = $true
+    if ($PSBoundParameters.ContainsKey('Tags')) {
+        $tagResult = _TestTags -VM $VM -Tags $Tags
     }
+    $match = if ( $tagResult) { 'MATCH' } else { 'MISMATCH' }
+    Write-Verbose -Message "Tags: $match"
 
     #endregion
 
     # Test provisioners
     $provisionerResults = @()
-    if ($Provisioners -ne [string]::Empty) {
+    if ($PSBoundParameters.ContainsKey('Provisioners')) {
         foreach ($p in (ConvertFrom-Json -InputObject $Provisioners)) {
             $provPath = "$PSScriptRoot\Provisioners\$($p.name)\Test.ps1"
             if (Test-Path -Path $provPath) {
