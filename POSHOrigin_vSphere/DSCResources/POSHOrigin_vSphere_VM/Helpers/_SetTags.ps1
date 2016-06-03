@@ -13,7 +13,7 @@ function _SetTags {
     $desiredTags = $Tags | ConvertFrom-Json
     $tagAssignments = $vm | Get-TagAssignment -Verbose:$false
     $tagCategories = Get-TagCategory -Verbose:$false
-    $vCenterTags = Get-Tag -Verbose:$false 
+    $vCenterTags = $tagCategories | Get-Tag -Verbose:$false 
     
     # Verify that each desired tag in configuration is applied in vCenter
     # Apply if necessary
