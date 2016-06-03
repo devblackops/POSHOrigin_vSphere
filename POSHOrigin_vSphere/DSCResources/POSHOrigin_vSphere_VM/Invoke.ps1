@@ -41,6 +41,9 @@ switch ($type) {
                 vRAM = $Options.options.vRAM
                 Datacenter = $Options.options.Datacenter
                 Cluster = $Options.options.Cluster
+                ResourcePool = $Options.options.ResourcePool
+                VMHost = $Options.options.VMHost
+                vApp = $Options.options.vApp
                 VMFolder = $Options.options.VMFolder
                 Tags = $Options.options.Tags
                 InitialDatastore = $Options.options.InitialDatastore
@@ -166,6 +169,9 @@ switch ($type) {
                     vRAM = $ResourceOptions.options.vRAM
                     Datacenter = $ResourceOptions.options.Datacenter
                     Cluster = $ResourceOptions.options.Cluster
+                    VMHost = $ResourceOptions.options.VMHost
+                    ResourcePool = $ResourceOptions.options.ResourcePool
+                    vApp = $ResourceOptions.options.vApp
                     VMFolder = $ResourceOptions.options.VMFolder
                     Tags = ConvertTo-Json -InputObject $ResourceOptions.options.Tags
                     InitialDatastore = $ResourceOptions.options.InitialDatastore
