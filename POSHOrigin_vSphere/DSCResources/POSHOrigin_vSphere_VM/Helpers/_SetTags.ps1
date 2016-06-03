@@ -40,10 +40,10 @@ function _SetTags {
     
     # Remove any tag assignments in vCenter that are NOT in the desired tag list
     foreach ($tagAssignment in $tagAssignments) {
-        $match = $desiredTags | Where-Object {($_.Category -eq $tagAssistnment.Tag.Category.Name) -and ($_.Name -eq $tagAssistnment.Tag.Name)}
+        $match = $desiredTags | Where-Object {($_.Category -eq $tagAssignment.Tag.Category.Name) -and ($_.Name -eq $tagAssignment.Tag.Name)}
         if (-not $match ) {
             # Remove tag assignment in vCenter
-            Write-Verbose -Message "Remove tag [$($tagAssignment.Tag.Category.Name)/]"
+            Write-Verbose -Message "Remove tag [$($tagAssignment.Tag.Category.Name)/$(tagAssignment.Tag.Name)]"
             $tagAssignment | Remove-TagAssignment -Verbose:$false
         }
     }
