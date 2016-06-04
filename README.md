@@ -4,10 +4,13 @@
 POSHOrigin_vSphere is a set of PowerShell 5 based DSC resources for managing VMware vSphere objects via DSC.
 
 ## Overview
-POSHOrigin_vSphere is a set of PowerShell 5 based DSC resources for managing VMware vSphere objects via DSC. These resources are designed to be used with [POSHOrigin](https://github.com/devblackops/POSHOrigin) as a Infrastructure as Code framework, but can be used natively by standard DSC configurations as well. Integration with [POSHOrigin](https://github.com/devblackops/POSHOrigin) is accomplished via a separate 'Invoke.ps1' script included in the module.
+POSHOrigin_vSphere is a set of PowerShell 5 based DSC resources for managing VMware vSphere objects via DSC. These resources are designed to be used 
+with [POSHOrigin](https://github.com/devblackops/POSHOrigin) as a Infrastructure as Code framework, but can be used natively by standard DSC 
+configurations as well. Integration with [POSHOrigin](https://github.com/devblackops/POSHOrigin) is accomplished via a separate 'Invoke.ps1' script 
+included in the module.
 
 ## Resources
-* **VM** Manages an virtual machine
+* **VM** - Manages an virtual machine
 
 ### VM
 
@@ -27,8 +30,13 @@ Parameters
 | CoresPerSocket        | int          | True     | Number of Cores per virtual socket
 | vRAM                  | int          | True     | Total vRAM in GB
 | Datacenter            | string       | True     | Name of virtual datacenter for VM
-| Cluster               | string       | True     | Name of cluster to deploy VM into
+| Cluster               | string       | False     | Name of cluster to deploy VM into. *[see Deployment locations](#deploymentlocations)*
+| ResourcePool          | string       | False    | Name of the resource pool to deploy VM into. *[see Deployment locations](#deploymentlocations)*
+| VMHost                | string       | False    | Name of the VM host to deploy the VM onto. *[see Deployment locations](#deploymentlocations)*
+| vApp                  | string       | False    | Name of the vApp to deploy the VM into. *[see Deployment locations](#deploymentlocations)*
 | VMFolder              | string       | False    | Path of VM folder to place VM in
+| Tags                  | string       | False    | JSON string representing an array of hashes for tag categories and tag names
+| UpdateTools           | bool         | False    | Indicates if VM tools should be updated / installed on the VM
 | InitialDatastore      | string       | True     | Name of datastore or datastore cluster to deploy VM in
 | PowerOnAfterCreation  | bool         | False    | Indicates if VM should be powered on after creation. Default is **True**
 | IPAMFqdn              | string       | False    | InfoBlox FQDN to allocate IP from
@@ -40,6 +48,16 @@ Parameters
 | IPAMCredentials       | pscredential | False    | InfoBlox credentials with rights to allocate IPs
 | DomainJoinCredentials | pscredential | False    | Active Directory credentials with rights to join machines to the domain
 
+
+#### <a name="deploymentlocations"></a>Some heading Deployment location options
+The options below are valid DSC properties for VM deployment location. 
+> **ONLY ONE MAY BE USED PER VM CONFIGURATION**. 
+Using more than one option will produce a runtime error.
+
+* Cluster
+* ResourcePool
+* VMHost
+* vApp
 
 ## POSHOrigin Example
 
@@ -60,6 +78,13 @@ resource 'POSHOrigin_vSphere:VM' 'VM01' @{
     coresPerSocket = 1
     vRAM = 4
     initialDatastore = 'datastore01'
+    updateTools = $true
+    tags = @(
+        @{ category = 'Application'; Name = 'My Awesome App' }
+        @{ category = 'Environment'; Name = 'Prod' }
+        @{ category = 'BU'; Name = 'Engineering' }
+        @{ category = 'BU'; Name = 'Sales' }
+    )
     networks = @{
         portGroup = 'VLAN_500'
         ipAssignment = 'Static'
@@ -91,7 +116,7 @@ resource 'POSHOrigin_vSphere:VM' 'VM01' @{
         username = 'administrator'
         password = '<you password here>'
     }
-    Provisioners = @(
+    provisioners = @(
         @{
             name = 'DomainJoin'
             options = @{
