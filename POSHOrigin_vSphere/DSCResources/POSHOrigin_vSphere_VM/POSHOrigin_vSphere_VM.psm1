@@ -51,6 +51,9 @@ function Get-TargetResource {
         
         [System.String]
         $Tags,
+        
+        [System.Boolean]
+        $UpdateTools = $false,
 
         [System.Management.Automation.PSCredential]
         $GuestCredentials,
@@ -110,6 +113,8 @@ function Get-TargetResource {
         Cluster = $Cluster
         ResourcePool = $ResourcePool
         VMHost = $VMHost
+        Tags = $Tags
+        UpdateTools = $UpdateTools
         vApp = $vApp
         Provisioners = $Provisioners
     }
@@ -161,6 +166,9 @@ function Set-TargetResource {
         
         [System.String]
         $Tags,
+        
+        [System.Boolean]
+        $UpdateTools = $false,
 
         [System.Management.Automation.PSCredential]
         $GuestCredentials,
@@ -284,38 +292,7 @@ function Set-TargetResource {
                 if (-not (_TestVMCPU -vm $vm -TotalvCPU $TotalvCPU -CoresPerSocket $CoresPerSocket)) {
                     _SetVMCPU -vm $vm -TotalvCPU $TotalvCPU -CoresPerSocket $CoresPerSocket
                 }
-
-                # Set disks
-                if (-not (_TestVMDisks -vm $vm -DiskSpec $Disks)) {
-                    $updatedVMDisks = _SetVMDisks -vm $vm -DiskSpec $Disks
-                }
-
-                # Power on VM and wait for OS customization to complete
-                if (-not (_TestVMPowerState -vm $vm -PowerOnAfterCreation $PowerOnAfterCreation)) {
-                    _SetVMPowerState -vm $vm
-
-                    # Wait for OS customization to complete if this is a newly created VM
-                    if ($newVM -eq $true) {
-                        _WaitForGuestCustomization -vm $vm
-                    }
-
-                    _WaitForVMTools -vm $vm -Credential $GuestCredentials
-                }
                 
-                $vm = Get-VM -Name $Name -Verbose:$false -ErrorAction SilentlyContinue | Select-Object -First 1
-                if ($VM.PowerState -eq 'PoweredOn') {
-                    if ($updatedVMDisks -eq $true) {
-                        _refreshHostStorageCache -vm $vm -Credential $GuestCredentials
-                    }
-
-                    # Set guest disks
-                    if (-not (_TestGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials)) {
-                        _SetGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials
-                    }
-                } else {
-                    Write-Warning -Message 'VM is powered off. Skipping guest check'
-                }
-
                 # Set VM Folder
                 if ($PSBoundParameters.ContainsKey('VMFolder')) {
                     if (-Not (_TestVMFolder -VM $VM -VMFolder $VMFolder)) {
@@ -330,6 +307,48 @@ function Set-TargetResource {
                     }
                 }
 
+                # Set disks
+                if (-not (_TestVMDisks -vm $vm -DiskSpec $Disks)) {
+                    $updatedVMDisks = _SetVMDisks -vm $vm -DiskSpec $Disks
+                }
+                
+                # Set NICS
+                # TODO
+
+                # Power on VM and wait for OS customization to complete
+                if (-not (_TestVMPowerState -vm $vm -PowerOnAfterCreation $PowerOnAfterCreation)) {
+                    _SetVMPowerState -vm $vm
+
+                    # Wait for OS customization to complete if this is a newly created VM
+                    if ($newVM -eq $true) {
+                        _WaitForGuestCustomization -vm $vm
+                    }
+
+                    _WaitForVMTools -vm $vm -Credential $GuestCredentials
+                }
+                
+                # Guest disks
+                $vm = Get-VM -Name $Name -Verbose:$false -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($VM.PowerState -eq 'PoweredOn') {
+                    if ($updatedVMDisks -eq $true) {
+                        _refreshHostStorageCache -vm $vm -Credential $GuestCredentials
+                    }
+
+                    # Set guest disks
+                    if (-not (_TestGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials)) {
+                        _SetGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials
+                    }
+                } else {
+                    Write-Warning -Message 'VM is powered off. Skipping guest check'
+                }
+                
+                # VM Tools
+                if ($UpdateTools) {
+                    if (-not (_TestVMTools -VM $VM)) {
+                        _UpdateTools -VM $VM
+                    }    
+                }                
+               
                 # Run any provisioners
                 if ($PSBoundParameters.ContainsKey('Provisioners')) {
                     foreach ($p in (ConvertFrom-Json -InputObject $Provisioners)) {
@@ -453,6 +472,9 @@ function Test-TargetResource {
         
         [System.String]
         $Tags,
+        
+        [System.Boolean]
+        $UpdateTools = $false,
 
         [System.Management.Automation.PSCredential]
         $GuestCredentials,
@@ -530,12 +552,35 @@ function Test-TargetResource {
     $cpuResult = _TestVMCPU -vm $vm -TotalvCPU $TotalvCPU -CoresPerSocket $CoresPerSocket
     $match = if ( $cpuResult) { 'MATCH' } else { 'MISMATCH' }
     Write-Verbose -Message "vCPU: $match"
-
+    
+    # Test VM folder
+    $folderResult = $true
+    if ($PSBoundParameters.ContainsKey('VMFolder')) {
+        $folderResult = _TestVMFolder -VM $vm -VMFolder $VMFolder
+        $match = if ( $folderResult) { 'MATCH' } else { 'MISMATCH' }
+        Write-Verbose -Message "VM Folder: $match"
+    }
+    
+    # Tags
+    $tagResult = $true
+    if ($PSBoundParameters.ContainsKey('Tags')) {
+        $tagResult = _TestTags -VM $VM -Tags $Tags
+    }
+    $match = if ( $tagResult) { 'MATCH' } else { 'MISMATCH' }
+    Write-Verbose -Message "Tags: $match"    
 
     # Disks
     $vmDiskResult = _TestVMDisks -vm $vm -DiskSpec $Disks
     $match = if ( $vmDiskResult) { 'MATCH' } else { 'MISMATCH' }
     Write-Verbose -Message "VM Disks: $match"
+    
+    # NICs
+    # TODO
+    
+    # Power state
+    $powerResult = _TestVMPowerState -vm $vm -PowerOnAfterCreation $PowerOnAfterCreation
+    $match = if ( $powerResult) { 'MATCH' } else { 'MISMATCH' }
+    Write-Verbose -Message "Power state: $match"
 
     # Guest disks
     $guestDiskResult = $true
@@ -547,32 +592,16 @@ function Test-TargetResource {
     } else {
         Write-Warning -Message 'VM is powered off. Skipping guest disk check'
     }
-
-    # NICs
-    # TODO
-
-    # Test VM folder
-    $folderResult = $true
-    if ($PSBoundParameters.ContainsKey('VMFolder')) {
-        $folderResult = _TestVMFolder -VM $vm -VMFolder $VMFolder
-        $match = if ( $folderResult) { 'MATCH' } else { 'MISMATCH' }
-        Write-Verbose -Message "VM Folder: $match"
-    }
-
-    # Power state
-    $powerResult = _TestVMPowerState -vm $vm -PowerOnAfterCreation $PowerOnAfterCreation
-    $match = if ( $powerResult) { 'MATCH' } else { 'MISMATCH' }
-    Write-Verbose -Message "Power state: $match"
-
-    # Tags
-    $tagResult = $true
-    if ($PSBoundParameters.ContainsKey('Tags')) {
-        $tagResult = _TestTags -VM $VM -Tags $Tags
-    }
-    $match = if ( $tagResult) { 'MATCH' } else { 'MISMATCH' }
-    Write-Verbose -Message "Tags: $match"
-
     #endregion
+    
+    # VM Tools
+    if ($UpdateTools) {
+        $toolsResult = _TestVMTools -VM $VM
+        $match = if ( $toolsResult) { 'Current' } else { 'OUT OF DATE/NOT INSTALLED' }
+        Write-Verbose -Message "VM Tools: $match"    
+    } else {
+        $toolsResult = $true
+    }    
 
     # Test provisioners
     $provisionerResults = @()
@@ -594,7 +623,7 @@ function Test-TargetResource {
 
     _DisconnectFromvCenter -vCenter $vCenter
     
-    if (-not ($ramResult -and $cpuResult -and $vmDiskResult -and $guestDiskResult -and $powerResult -and $folderResult -and $tagResult)) {
+    if (-not ($ramResult -and $cpuResult -and $vmDiskResult -and $guestDiskResult -and $powerResult -and $folderResult -and $tagResult -and $toolsResult)) {
         Write-Debug -Message "One or more tests failed"
         return $false
     }
