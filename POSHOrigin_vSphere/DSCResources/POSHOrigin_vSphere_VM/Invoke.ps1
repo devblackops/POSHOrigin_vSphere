@@ -46,6 +46,7 @@ switch ($type) {
                 vApp = $Options.options.vApp
                 VMFolder = $Options.options.VMFolder
                 Tags = $Options.options.Tags
+                UpdateTools = $Options.options.UpdateTools
                 InitialDatastore = $Options.options.InitialDatastore
                 Disks = ConvertTo-Json -InputObject $Options.options.disks -Depth 100
                 CustomizationSpec = $Options.options.CustomizationSpec
@@ -173,6 +174,7 @@ switch ($type) {
                     ResourcePool = $ResourceOptions.options.ResourcePool
                     vApp = $ResourceOptions.options.vApp
                     VMFolder = $ResourceOptions.options.VMFolder
+                    UpdateTools = $ResourceOptions.options.UpdateTools
                     Tags = ConvertTo-Json -InputObject $ResourceOptions.options.Tags
                     InitialDatastore = $ResourceOptions.options.InitialDatastore
                     Disks = ConvertTo-Json -InputObject $ResourceOptions.options.disks
