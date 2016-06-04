@@ -15,6 +15,7 @@ class POSHOrigin_vSphere_VM : OMI_BaseResource
     [Write] String VMFolder;
     [Write] String CustomizationSpec;
     [Write] String Tags;
+    [Write] Boolean UpdateTools;
     [Write, EmbeddedInstance("MSFT_Credential")] String GuestCredentials;
     [Write, EmbeddedInstance("MSFT_Credential")] String IPAMCredentials;
     [Write, EmbeddedInstance("MSFT_Credential")] String DomainJoinCredentials;
