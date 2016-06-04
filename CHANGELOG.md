@@ -1,3 +1,6 @@
+# Unreleased
+    * Add support for managing tags on VMs.
+
 ## 1.2.0
     * Add support for deploying VMs into a resource pool, directly to a VM host, order to a vApp.
     * Fix bug with testing IP connectivity prior to creating a VM, when that VM has multiple NICs defined.
