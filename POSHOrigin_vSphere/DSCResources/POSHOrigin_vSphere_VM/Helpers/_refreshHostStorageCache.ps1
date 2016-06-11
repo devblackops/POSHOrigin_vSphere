@@ -11,12 +11,18 @@ function _RefreshHostStorageCache {
 
     try {
         $ip = _GetGuestVMIPAddress -VM $vm
+        $os = _GetGuestOS -VM $vm -Credential $credential
         if ($ip) {
             $session = New-PSSession -ComputerName $ip -Credential $credential -Verbose:$false
 
             Write-Debug 'Refreshing disks on guest'
-            Invoke-Command -Session $session -ScriptBlock { Update-HostStorageCache } -Verbose:$false
-            Remove-PSSession -Session $session -ErrorAction SilentlyContinue
+            if ($os -ge 63) {
+                Invoke-Command -Session $session -ScriptBlock { Update-HostStorageCache } -Verbose:$false
+                Remove-PSSession -Session $session -ErrorAction SilentlyContinue
+            } else {
+                Invoke-Command -Session $session -ScriptBlock { $x = "rescan" | diskpart } -Verbose:$false
+                Remove-PSSession -session $session -ErrorAction SilentlyContinue
+            }
         } else {
             Write-Error -Message 'No valid IP address returned from VM view. Can not update guest storage cache'
         }

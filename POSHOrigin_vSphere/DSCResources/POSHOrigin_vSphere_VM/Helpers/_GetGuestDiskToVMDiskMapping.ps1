@@ -15,6 +15,7 @@ function _GetGuestDiskToVMDiskMapping {
     )
 
     try {
+        $os = _GetGuestOS -VM $VM -Credential $credential
         $vmView = $VM | Get-View -Verbose:$false -Debug:$false
 
         # Get the ESX host which the VM is currently running on
@@ -31,29 +32,45 @@ function _GetGuestDiskToVMDiskMapping {
 
         # Match the guest disks to the VM disks by SCSI bus number and unit number
         $diskInfo = @()
-        foreach ($virtualSCSIController in ($vmView.Config.Hardware.Device | where {$_.DeviceInfo.Label -match "SCSI Controller"})) {
+        foreach ($virtualSCSIController in ($vmView.Config.Hardware.Device | where {$_.DeviceInfo.Label -match 'SCSI Controller'})) {
             foreach ($virtualDiskDevice in ($vmView.Config.Hardware.Device | where {$_.ControllerKey -eq $virtualSCSIController.Key})) {
-                $mapping = "" | Select SCSIController, DiskName, SCSIId, SCSIBus, SCSIUnit, DiskFile,  DiskSize, WindowsDisk, SerialNumber
-                $mapping.SCSIController = $virtualSCSIController.DeviceInfo.Label
-                $mapping.DiskName = $virtualDiskDevice.DeviceInfo.Label
-                $mapping.SCSIId = "$($virtualSCSIController.BusNumber)`:$($virtualDiskDevice.UnitNumber)"
-                $mapping.SCSIBus = $($virtualSCSIController.BusNumber)
-                $mapping.SCSIUnit = $($virtualDiskDevice.UnitNumber)
-                $mapping.DiskFile = $virtualDiskDevice.Backing.FileName
-                $mapping.DiskSize = $virtualDiskDevice.CapacityInKB * 1KB / 1GB
 
-                $match = $wmiDisks | Where-Object {([int]$_.SCSIPort – 2) -eq $virtualSCSIController.BusNumber -and [int]$_.SCSITargetID -eq $virtualDiskDevice.UnitNumber}
+                $mapping = new-object psobject
+                Add-Member -InputObject $mapping -MemberType NoteProperty -Name SCSIController -Value $virtualSCSIController.DeviceInfo.Label
+                Add-Member -InputObject $mapping -MemberType NoteProperty -Name DiskName -Value $virtualDiskDevice.DeviceInfo.Label
+                Add-Member -InputObject $mapping -MemberType NoteProperty -Name SCSIId -Value "$($virtualSCSIController.BusNumber)`:$($virtualDiskDevice.UnitNumber)"
+                Add-Member -InputObject $mapping -MemberType NoteProperty -Name SCSIBus -Value $($virtualSCSIController.BusNumber)
+                Add-Member -InputObject $mapping -MemberType NoteProperty -Name SCSIUnit -Value $($virtualDiskDevice.UnitNumber)
+                Add-Member -InputObject $mapping -MemberType NoteProperty -Name DiskFile -Value $virtualDiskDevice.Backing.FileName
+                Add-Member -InputObject $mapping -MemberType NoteProperty -Name DiskSize -Value (($virtualDiskDevice.CapacityInKB * 1KB / 1GB)).ToInt32($Null)
+
+                $match = $wmiDisks | Where-Object {([int]$_.SCSIPort - 2) -eq $virtualSCSIController.BusNumber -and [int]$_.SCSITargetID -eq $virtualDiskDevice.UnitNumber}
                 if ($match) {
-                    $mapping.WindowsDisk = $match.Index
-                    $mapping.SerialNumber = $match.SerialNumber
-                } else {
-                    #Write-Verbose -Message "No matching Windows disk found for SCSI ID [$($mapping.SCSIId)]"
-                }
+                    Add-Member -InputObject $mapping -MemberType NoteProperty -Name WindowsDisk -Value $match.Index
+                    Add-Member -InputObject $mapping -MemberType NoteProperty -Name SerialNumber -Value $match.SerialNumber
+                    if ($os -lt 63) {
+                        $partitions = Get-CimInstance -Query "ASSOCIATORS OF {Win32_DiskDrive.DeviceID=`"$($match.DeviceID.replace('\','\\'))`"} WHERE AssocClass = Win32_DiskDriveToDiskPartition" -CimSession $cim -verbose:$false | Select *
 
-                $diskInfo += $mapping
+                        foreach($part in $partitions) {
+                            $vols = Get-CimInstance -Query "ASSOCIATORS OF {Win32_DiskPartition.DeviceID=`"$($part.DeviceID)`"} WHERE AssocClass = Win32_LogicalDiskToPartition" -CimSession $cim -verbose:$false | Select *
+                            foreach($vol in $vols) {
+                               $tempVol = Get-CimInstance -ClassName Win32_Volume -CimSession $cim -verbose:$false | Select *
+                               $tempMatch = $tempVol | Where-Object {$_.DriveLetter -eq $vol.DeviceID}
+                                if ($tempMatch) {
+                                    Add-Member -InputObject $mapping -MemberType NoteProperty -Name VolumeName -Value $tempMatch.DriveLetter.SubString(0,1)
+                                    Add-Member -InputObject $mapping -MemberType NoteProperty -Name VolumeLabel -Value $tempMatch.Label
+                                    Add-Member -InputObject $mapping -MemberType NoteProperty -Name BlockSize -Value $tempMatch.BlockSize
+                                    Add-Member -InputObject $mapping -MemberType NoteProperty -Name Format -value $tempMatch.FileSystem
+                                }
+                            }
+                        }
+                    }
+                    $diskInfo += $mapping   
+                } else {
+                    Write-Verbose -Message "No matching Windows disk found for SCSI ID [$($mapping.SCSIId)]"
+                }        
             }
         }
-        Write-Debug -Message ($diskInfo | ft DiskName, SCSIId, DiskSize, WindowsDisk, SerialNumber  -AutoSize | out-string)
         return $diskInfo
     } catch {
         Write-Error -Message 'There was a problem getting the guest disk mapping'
