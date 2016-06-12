@@ -51,7 +51,7 @@ function _SetGuestDisks{
                 if ($os -ge 63) {
                     $disks = Invoke-Command -Session $session -ScriptBlock { Get-Disk } -Verbose:$false
                 } else {
-                    $disks = Get-CimInstance -ClassName CIM_DiskDrive -CimSession $cim | Select *
+                    $disks = Get-CimInstance -ClassName CIM_DiskDrive -CimSession $cim -Verbose:$false | Select *
                 }
 
                 # Rename CDROM to Z:
@@ -90,7 +90,7 @@ function _SetGuestDisks{
                                 $formatParams.Add('cim', $cim)
                                 _FormatOldGuestDisk @formatParams
                             }
-
+                            Write-Debug -Message "Formatting disk [$($guestDisk.WindowsDisk)]complete"
                         } else {
                             Write-Verbose -Message "Could not find guest disk [$($guestDisk.WindowsDisk)]"
                         }
@@ -118,7 +118,7 @@ function _SetGuestDisks{
                     }
                 $formatedDisks = Invoke-Command @gfd
                 } else {
-                    $gfd = $guestDiskMapping | where-object {$_.FileSystem -ne ''}
+                    $formatedDisks = $guestDiskMapping | where-object {$_.FileSystem -ne ''}
                 }
 
                 foreach ($config in $desiredDiskConfigMapping) {
@@ -129,7 +129,6 @@ function _SetGuestDisks{
                         Select-Object -First 1
 
                     if ($guestDisk) {
-
                         $disk = $formatedDisks |
                             Where-Object {$_.SerialNumber -eq $guestDisk.SerialNumber} |
                             Select-Object -first 1
@@ -137,139 +136,145 @@ function _SetGuestDisks{
                         if ($null -ne $disk) {
 
                             # Get the partition
-                            Write-Debug -Message "Looking at disk $($disk.Number)"
                             if ($os -ge 63) {
-                                    $gp = @{
-                                        Session = $session
-                                        ScriptBlock = {
-                                            $args[0] |
-                                                Get-Partition |
-                                                Where-Object {$_.Type -ne 'Reserved' -and $_.IsSystem -eq $false} |
-                                                Select-Object -First 1
-                                            }
-                                        ArgumentList = $disk
-                                        Verbose = $false
-                                    }
-                                    $partition = Invoke-Command @gp                            
-
-                                    # Get max parition size supported on this disk
-                                    $gpss = @{
-                                        Session = $session
-                                        ArgumentList = $partition
-                                        ScriptBlock = { $args[0] | Get-PartitionSupportedSize | Select-Object -Last 1 }
-                                        Verbose = $false
-                                    }
-                                    $sizes = Invoke-Command @gpss                         
-                            
-                                    # The max partition size is greater than the current partition size
-                                    Write-Debug -Message "Partition size: $($partition.Size)"
-                                    Write-Debug -Message "Paritition max size: $($sizes.SizeMax)"
-                                    if ( [math]::round($partition.Size / 1GB) -lt [math]::round($sizes.SizeMax / 1GB)) {
-                                        Write-Verbose -Message "Resisizing disk $($partition.DiskNumber) partition $($partition.PartitionNumber) to $($config.DiskSizeGB) GB"
-                                        $rp = @{
-                                            Session = $session
-                                            ArgumentList = @($partition, $sizes.SizeMax)
-                                            ScriptBlock = { $args[0] | Resize-Partition -Confirm:$false -Size $args[1] }
-                                            Verbose = $false
+                                Write-Debug -Message "Looking at disk $($disk.Number)"
+                                Write-Debug -Message "Using 2012r2 commands"
+                                $gp = @{
+                                    Session = $session
+                                    ScriptBlock = {
+                                        $args[0] |
+                                            Get-Partition |
+                                            Where-Object {$_.Type -ne 'Reserved' -and $_.IsSystem -eq $false} |
+                                            Select-Object -First 1
                                         }
-                                        Invoke-Command @rp
-                                    }
-
-                                    $gv = @{
-                                        Session = $session 
-                                        ArgumentList = $partition
-                                        ScriptBlock = { $args[0] | Get-Volume }
-                                        Verbose =$false
-                                    }
-                                    $volume = Invoke-Command @gv
-
-                                    # Drive letter
-                                    if ($Volume.DriveLetter -ne $config.VolumeName) {
-                                        Write-Verbose -Message "Setting drive letter to [$($config.VolumeName)]"
-                                        $sdl = @{
-                                            Session = $session
-                                            ArgumentList = @($partition, $config.VolumeName)
-                                            ScriptBlock = { $args[0] | Set-Partition -NewDriveLetter $args[1] }
-                                            Verbose = $false
-                                        }
-                                        Invoke-Command @sdl
-                                    }
-
-                                    # Volume label
-                                    if ($Volume.FileSystemLabel -ne $config.VolumeLabel) {
-                                        Write-Verbose -Message "Setting volume to [$($config.VolumeLabel)]"
-                                        $gld = @{
-                                            CimSession = $cim
-                                            ClassName = 'Win32_LogicalDisk'
-                                            Filter = "deviceid='$($Volume.DriveLetter):'"
-                                            Verbose = $false
-                                        }
-                                        $vol = Get-CimInstance @gld
-                                        $vol | Set-CimInstance -Property @{volumename=$config.VolumeLabel} -Verbose:$false
-                                    }
-                                } else {
-                                    Write-Debug -Message "Looking at disk $($disk.WindowsDisk)"
-                                    $gs = @{
-                                        Session = $session
-                                        ArgumentList = $disk
-                                        ScriptBlock = {
-                                            $diskInfo = New-Object psobject
-                                            $results = "list disk" |diskpart | ? {$_.startswith("  Disk $($args[0].WindowsDisk)")}
-
-                                            $results |% { 
-                                                if ($_ -match 'Disk\s+(\d+)\s+\w+\s+\d+\s+\w+\s+(\d+)') {
-                                                    Add-Member -InputObject $diskInfo -MemberType Noteproperty -Name ExtraSpace -Value $($matches[2])
-                                                    $command = "select disk $($matches[1])`r`nlist part"
-                                                    $command |diskpart |where {$_ -match 'Partition\s\d'}
-                                                    Add-Member -InputObject $diskInfo -Membertype Noteproperty -Name PartitionCount -Value $($matches.Values.Count)
-                                                }
-                                            }
-                                            $diskInfo
-                                        }
-                                    }
-                                    $diskInfo = Invoke-Command @gs
-
-                                    if ($diskInfo.PartitionCount -ne 1) {
-                                        throw
-                                    } elseif ($diskInfo.ExtraSpace -gt 0) {
-                                        $ed = @{
-                                            Session = $session
-                                            ArgumentList = $disk
-                                            ScriptBlock = {
-                                                "Select Disk $($args[0].WindowsDisk)", "Select Partition 1", "extend noerr" | diskpart
-                                            }
-                                        }
-                                        $results = Invoke-Command @ed
-                                    }
-
-                                    # Drive letter
-                                    if ($disk.VolumeName -ne $config.VolumeName) {
-                                        Write-Verbose -Message "Setting drive letter to [$($config.VolumeName)]"
-                                        $sdl = @{
-                                            Session = $session
-                                            ArgumentList = $disk
-                                            ScriptBlock = {
-                                                "Select Disk $($disk.WindowsDisk)", "Select Partition 1", "assign letter=$($args[0].VolumeName)" | diskpart
-                                            }
-                                        }
-                                    }
-
-                                    # Volume label
-                                    if ($disk.VolumeLabel -ne $config.VolumeLabel) {
-                                        Write-Verbose -Message "Setting volume to [$($config.VolumeLabel)]"
-                                        $gld = @{
-                                            CimSession = $cim
-                                            ClassName = 'Win32_LogicalDisk'
-                                            Filter = "deviceid='$($disk.VolumeName):'"
-                                            Verbose = $false
-                                        }
-                                        $vol = Get-CimInstance @gld
-                                        $vol | Set-CimInstance -Property @{volumename=$config.VolumeLabel} -Verbose:$false
-                                    }                                    
+                                    ArgumentList = $disk
+                                    Verbose = $false
                                 }
+                                $partition = Invoke-Command @gp                            
+
+                                # Get max parition size supported on this disk
+                                $gpss = @{
+                                    Session = $session
+                                    ArgumentList = $partition
+                                    ScriptBlock = { $args[0] | Get-PartitionSupportedSize | Select-Object -Last 1 }
+                                    Verbose = $false
+                                }
+                                $sizes = Invoke-Command @gpss                         
+                            
+                                # The max partition size is greater than the current partition size
+                                Write-Debug -Message "Partition size: $($partition.Size)"
+                                Write-Debug -Message "Paritition max size: $($sizes.SizeMax)"
+                                if ( [math]::round($partition.Size / 1GB) -lt [math]::round($sizes.SizeMax / 1GB)) {
+                                    Write-Verbose -Message "Resisizing disk $($partition.DiskNumber) partition $($partition.PartitionNumber) to $($config.DiskSizeGB) GB"
+                                    $rp = @{
+                                        Session = $session
+                                        ArgumentList = @($partition, $sizes.SizeMax)
+                                        ScriptBlock = { $args[0] | Resize-Partition -Confirm:$false -Size $args[1] }
+                                        Verbose = $false
+                                    }
+                                    Invoke-Command @rp
+                                }
+
+                                $gv = @{
+                                    Session = $session 
+                                    ArgumentList = $partition
+                                    ScriptBlock = { $args[0] | Get-Volume }
+                                    Verbose =$false
+                                }
+                                $volume = Invoke-Command @gv
+
+                                # Drive letter
+                                if ($Volume.DriveLetter -ne $config.VolumeName) {
+                                    Write-Verbose -Message "Setting drive letter to [$($config.VolumeName)]"
+                                    $sdl = @{
+                                        Session = $session
+                                        ArgumentList = @($partition, $config.VolumeName)
+                                        ScriptBlock = { $args[0] | Set-Partition -NewDriveLetter $args[1] }
+                                        Verbose = $false
+                                    }
+                                    Invoke-Command @sdl
+                                }
+
+                                # Volume label
+                                if ($Volume.FileSystemLabel -ne $config.VolumeLabel) {
+                                    Write-Verbose -Message "Setting volume to [$($config.VolumeLabel)]"
+                                    $gld = @{
+                                        CimSession = $cim
+                                        ClassName = 'Win32_LogicalDisk'
+                                        Filter = "deviceid='$($Volume.DriveLetter):'"
+                                        Verbose = $false
+                                    }
+                                    $vol = Get-CimInstance @gld
+                                    $vol | Set-CimInstance -Property @{volumename=$config.VolumeLabel} -Verbose:$false
+                                }
+                            } else {
+                                Write-Debug -Message "Looking at disk $($disk.WindowsDisk)"
+                                Write-Debug -Message "Using 2008r2 commands"
+                                $gs = @{
+                                    Session = $session
+                                    ArgumentList = $disk.WindowsDisk
+                                    ScriptBlock = {
+                                        $diskInfo = New-Object psobject
+                                        $diskID = '  Disk ' + $($args[0]).ToString()
+                                        $results = "list disk" | diskpart | ? {$_.startswith($diskID)}
+
+                                        $results |% { 
+                                            if ($_ -match 'Disk\s+(\d+)\s+\w+\s+\d+\s+\w+\s+(\d+)') {
+                                                Add-Member -InputObject $diskInfo -MemberType Noteproperty -Name ExtraSpace -Value $($matches[2])
+                                                $command = "select disk $($matches[1])`r`nlist part"
+                                                $x = $command |diskpart |where {$_ -match 'Partition\s\d'}
+                                                Add-Member -InputObject $diskInfo -Membertype Noteproperty -Name PartitionCount -Value $($matches.Values.Count)
+                                            }
+                                        }
+                                        $diskInfo
+                                    }
+                                }
+                                $diskInfo = Invoke-Command @gs
+
+                                if ($diskInfo.PartitionCount -ne 1) {
+                                    throw
+                                } elseif ($diskInfo.ExtraSpace -gt 0) {
+                                    $ed = @{
+                                        Session = $session
+                                        ArgumentList = $disk.WindowsDisk
+                                        ScriptBlock = {
+                                            $diskID = $args[0].ToString()
+                                            $x = "Select Disk $($diskID)", "Select Partition 1", "extend noerr" | diskpart | out-null
+                                        }
+                                    }
+                                    $results = Invoke-Command @ed
+                                }
+
+                                # Drive letter
+                                if ($disk.VolumeName -ne $config.VolumeName) {
+                                    Write-Verbose -Message "Setting drive letter to [$($config.VolumeName)]"
+                                    $sdl = @{
+                                        Session = $session
+                                        ArgumentList = $disk
+                                        ScriptBlock = {
+                                            $DiskID = $args[0].WindowsDisk.ToString()
+                                            $VolName = $args[0].VolumeName.ToString()
+                                            $x = "Select Disk $($DiskID)", "Select Partition 1", "assign letter=$($VolName)" | diskpart | Out-Null
+                                        }
+                                    }
+                                }
+
+                                # Volume label
+                                if ($disk.VolumeLabel -ne $config.VolumeLabel) {
+                                    Write-Verbose -Message "Setting volume to [$($config.VolumeLabel)]"
+                                    $gld = @{
+                                        CimSession = $cim
+                                        ClassName = 'Win32_LogicalDisk'
+                                        Filter = "deviceid='$($disk.VolumeName):'"
+                                        Verbose = $false
+                                    }
+                                    $vol = Get-CimInstance @gld
+                                    $vol | Set-CimInstance -Property @{volumename=$config.VolumeLabel} -Verbose:$false
+                                }                                    
                             }
                         }
                     }
+                }
                 Remove-CimSession -CimSession $cim -ErrorAction SilentlyContinue
                 Remove-PSSession -Session $session -ErrorAction SilentlyContinue
             } else {

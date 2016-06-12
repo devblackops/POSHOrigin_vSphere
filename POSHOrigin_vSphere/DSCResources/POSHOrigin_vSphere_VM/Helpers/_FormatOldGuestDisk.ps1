@@ -28,38 +28,99 @@ function _FormatOldGuestDisk {
     Write-Debug -Message "Looking at disk $($disk.Index)"
     
     try {
-        # Online the disk
-        Write-Verbose -Message "Onlining disk [$($disk.Number)]"
+        
+        #Test if disk is online or offline
+        Write-Verbose -Message "Testing if disk [$($disk.Index)] is online"
         $diskID = $disk.Index
-        $onlineDiskParams = @{
+        $isOnlineParams = @{
             Session = $session
             ArgumentList = $diskID
             Verbose = $false
             ScriptBlock = {
-                "Select Disk $($args[0])", "online disk noerr", "attributes disk clear readonly" | diskpart | Out-Null
+                $gstatus = $null
+                $diskID = $args[0].ToString()
+                $temp = "Select Disk $($diskID)", "detail disk" | diskpart
+                $gstatus = ($temp | Select-String -Pattern 'Status : ').ToString().Substring(9)
+                $gstatus
             }
         }
-        Invoke-Command @onlineDiskParams
+        $isOnline = Invoke-Command @isOnlineParams
+
+        # Online the disk
+        if ($isOnline -ne 'Online') {
+            Write-Verbose -Message "Onlining disk [$($disk.Index)]"
+            $onlineDiskParams = @{
+                Session = $session
+                ArgumentList = $diskID
+                Verbose = $false
+                ScriptBlock = {
+                    $diskID = $args[0].ToString()
+                    $x = "Select Disk $($diskID)", "online disk noerr" | diskpart | Out-Null
+                }
+            }
+            Invoke-Command @onlineDiskParams
+        } else {
+            Write-Debug -Message "Disk $($disk.Index) is already online"
+        }
+
+        $isReadOnlyParams = @{
+            Session = $session
+            ArgumentList = $diskID
+            Verbose = $false
+            ScriptBlock = {
+                $gronly = $null
+                $diskID = $args[0].ToString()
+                $temp = "Select Disk $($diskID)", "detail disk" | diskpart
+                $gronly = ($temp | Select-String -Pattern 'Read-only  : ').ToString().Substring(13)
+                $gronly
+            }
+        }
+        $isReadOnly = Invoke-Command @isReadOnlyParams
+
+        # Set Readonly to no
+        if ($isReadOnly -ne 'No') {
+            Write-Verbose -Message "Setting disk [$($disk.Index)] to Readonly = no"
+            $readOnlyParams = @{
+                Session = $session
+                ArgumentList = $diskID
+                Verbose = $false
+                ScriptBlock = {
+                    $diskID = $args[0].ToString()
+                    $x = "Select Disk $($diskID)", "attributes disk clear readonly" | diskpart | Out-Null
+                }
+            }
+            Invoke-Command @readOnlyParams            
+        } else {
+            Write-Debug -Message "Disk $($disk.Index) is already not ReadOnly"
+        }
+
         
         if ($disk.Partitions -eq 0) {
 
             # Format the disk
             $formatParams = @{
                 Session = $session
-                ArgumentList = @($disk, $VolumeName, $VolumeLabel, $AllocationUnitSize, $PartitionStyle )
+                ArgumentList = @($disk.Index, $VolumeName, $VolumeLabel, $AllocationUnitSize, $PartitionStyle )
                 ScriptBlock = {
                     $verbosePreference = $using:VerbosePreference
-
+                    $diskID = $args[0].ToString()
+                    $VolName = $args[1].ToString()
+                    $VolLabel = $args[2].ToString()
+                    $AlloSize = $args[3].ToString()
+                    $PartStyle = $args[4].ToString()
+                    
                     # Initialize disk
-                    Write-Verbose -Message "Initializing disk [$($args[0].Index)] with [$($args[4])]"
-                    "Select Disk $($args[0].Index)", "convert $($args[4])" | diskpart | Out-Null
+                    Write-Verbose -Message "Initializing disk [$($diskID)] with [$($PartStyle)]"
+                    $x = "Select Disk $($diskID)", "convert $($PartStyle)" | diskpart | Out-Null
 
                     # Create partition and format volume
-                    Write-Verbose -Message "Creating partition [$($args[1])] on disk [$($args[0].Index)]"
-                    "Select Disk $($args[0].Index)", "create partition primary", "assign letter=$($args[1])", "format FS=NTFS label=$($args[2]) Unit=$($args[3])" | diskpart | Out-Null
+                    Write-Verbose -Message "Creating partition [$($VolName) on disk [$($diskID)]"
+                    $x = "Select Disk $($diskID)", "create partition primary", "assign letter=$($VolName)", "format FS=NTFS label=$($VolLabel) Unit=$($AlloSize)" | diskpart | Out-Null
                 }
             }
             Invoke-Command @formatParams
+        } else {
+            Write-Debug -Message "Disk [$($disk.Index)]is already initialized"
         }
     } catch {
         Write-Error -Message 'There was a problem configuring the guest disks'
