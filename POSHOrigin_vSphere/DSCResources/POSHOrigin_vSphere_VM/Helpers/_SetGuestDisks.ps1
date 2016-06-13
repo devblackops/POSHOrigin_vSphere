@@ -48,7 +48,7 @@ function _SetGuestDisks{
                 $guestDiskMapping = _GetGuestDiskToVMDiskMapping -VM $vm -cim $cim -Credential $Credential
                 $os = _GetGuestOS -VM $vm -Credential $credential
 
-                if ($os -ge 63) {
+                if ($os -ge 62) {
                     $disks = Invoke-Command -Session $session -ScriptBlock { Get-Disk } -Verbose:$false
                 } else {
                     $disks = Get-CimInstance -ClassName CIM_DiskDrive -CimSession $cim -Verbose:$false | Select *
@@ -67,7 +67,7 @@ function _SetGuestDisks{
 
                     if ($guestDisk) {
 
-                        if ($os -ge 63) {
+                        if ($os -ge 62) {
                             $disk = $disks | Where-Object {$_.Number -eq $guestDisk.WindowsDisk} | Select-Object -First 1
                         } else {
                             $disk = $disks | Where-Object {$_.Index -eq $guestDisk.WindowsDisk} | Select-Object -First 1
@@ -84,7 +84,7 @@ function _SetGuestDisks{
                                 VolumeLabel = $config.VolumeLabel
                                 AllocationUnitSize = $config.BlockSize
                             }
-                            if ($os -ge 63) {
+                            if ($os -ge 62) {
                                 _FormatGuestDisk @formatParams
                             } else {
                                 $formatParams.Add('cim', $cim)
@@ -109,7 +109,7 @@ function _SetGuestDisks{
                 $guestDiskMapping = _GetGuestDiskToVMDiskMapping -VM $vm -cim $cim -Credential $Credential
 
                 # Get formated disks
-                if ($os -ge 63) {
+                if ($os -ge 62) {
                     $gfd = @{
                         Session = $session
                         ScriptBlock = {
@@ -136,11 +136,11 @@ function _SetGuestDisks{
                         if ($null -ne $disk) {
 
                             # Get the partition
-                            if ($os -ge 63) {
+                            if ($os -ge 62) {
                                 Write-Debug -Message "Looking at disk $($disk.Number)"
-                                Write-Debug -Message "Using 2012r2 commands"
+                                Write-Debug -Message "Using 2012 commands"
                                 $gp = @{
-                                    Session = $session
+                                    Session = $session  
                                     ScriptBlock = {
                                         $args[0] |
                                             Get-Partition |

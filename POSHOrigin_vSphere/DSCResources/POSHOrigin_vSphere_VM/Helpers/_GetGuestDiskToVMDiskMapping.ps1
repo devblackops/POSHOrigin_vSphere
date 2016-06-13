@@ -48,7 +48,7 @@ function _GetGuestDiskToVMDiskMapping {
                 if ($match) {
                     Add-Member -InputObject $mapping -MemberType NoteProperty -Name WindowsDisk -Value $match.Index
                     Add-Member -InputObject $mapping -MemberType NoteProperty -Name SerialNumber -Value $match.SerialNumber
-                    if ($os -lt 63) {
+                    if ($os -lt 62) {
                         $partitions = Get-CimInstance -Query "ASSOCIATORS OF {Win32_DiskDrive.DeviceID=`"$($match.DeviceID.replace('\','\\'))`"} WHERE AssocClass = Win32_DiskDriveToDiskPartition" -CimSession $cim -verbose:$false | Select *
 
                         foreach($part in $partitions) {

@@ -29,9 +29,9 @@ function _TestGuestDisks {
             $cim = New-CimSession -ComputerName $ip -Credential $Credential -SessionOption $opt -Verbose:$false
             $session = New-PSSession -ComputerName $ip -Credential $credential -Verbose:$false
 
-            # Test Server 2012R2 or higher #
-            if ($os -ge 63) {
-                Write-Verbose -message 'Running 2012r2 disk tests'
+            # Test Server 2012 or higher #
+            if ($os -ge 62) {
+                Write-Verbose -message 'Running 2012 disk tests'
                 if ($ip) {
 
                     # Get mapped disks between the guest and VMware
@@ -83,7 +83,7 @@ function _TestGuestDisks {
                                     }
 
                                     # Volume label
-                                    if ($volume.FileSystemLabel -ne $config.VolumeLabel) {
+                                    if (($volume.FileSystemLabel -ne $config.VolumeLabel) -and ($config.VolumeLabel -ne $null)) {
                                         Write-Verbose -Message "Volume label [$($Volume.FileSystemLabel)] does not match configuration [$($config.VolumeLabel)]"
                                         $pass = $false
                                     }
@@ -139,8 +139,9 @@ function _TestGuestDisks {
                                         $tempString = '  Disk ' + $($args[0]).ToString()
                                         $results = "list disk" | diskpart | ? {$_.startswith($tempString)}
                                         $results |% { 
-                                            if ($_ -match 'Disk\s+(\d+)\s+\w+\s+\d+\s+\w+\s+(\d+)') {
-                                                Add-Member -InputObject $diskSize -MemberType Noteproperty -Name ExtraSpace -Value $($matches[2])
+                                            if ($_ -match 'Disk\s+(\d+)\s+\w+\s+(\d+)\s+\w+\s+(\d+)') {
+                                                Add-Member -InputObject $diskSize -MemberType Noteproperty -Name ExtraSpace -Value $($matches[3])
+                                                Add-Member -InputObject $diskSize -MemberType NoteProperty -Name DiskSize -Value $($matches[2])
                                                 $command = "select disk $($matches[1])`r`nlist part"
                                                 $results2 = $command |diskpart |where {$_ -match 'Partition\s+(\d+)\s+\w+\s+(\d+)'}
                                                 Add-Member -InputObject $diskSize -Membertype Noteproperty -Name PartSize -Value $($matches[2])
@@ -151,8 +152,8 @@ function _TestGuestDisks {
                                 }
                                 $diskInfo = Invoke-Command @gs
 
-                                if ($diskInfo.ExtraSpace -gt 0) {
-                                    Write-Verbose -Message "Disk [$($disk.WindowsDisk)] does not match configuration [$($diskInfo.PartSize) GB <> $($config.DiskSizeGB) GB]"
+                                if (($diskInfo.ExtraSpace -gt 0) -and ($diskInfo.DiskSize -ne $config.DiskSizeGB)) {
+                                    Write-Verbose -Message "Disk [$($guestdisk.WindowsDisk)] does not match configuration [$($diskInfo.DiskSize) GB <> $($config.DiskSizeGB) GB]"
                                     $pass = $false
                                 }
 
@@ -163,7 +164,7 @@ function _TestGuestDisks {
                                 }
 
                                 # Volume label
-                                if ($guestdisk.VolumeLabel -ne $config.VolumeLabel) {
+                                if (($guestdisk.VolumeLabel -ne $config.VolumeLabel) -and ($config.VolumeLabel -ne $null)) {
                                     Write-Verbose -Message "Volume label [$($guestdisk.VolumeLabel)] does not match configuration [$($config.VolumeLabel)]"
                                     $pass = $false
                                 }                               
