@@ -1,6 +1,7 @@
 # Unreleased
     * Add support for managing tags on VMs.
     * Add support for installing/updating VM tools if out of date or not installed.
+    * Add support for legacy OS (server 2008R2) when managing guest disks.
 
 ## 1.2.0
     * Add support for deploying VMs into a resource pool, directly to a VM host, order to a vApp.
