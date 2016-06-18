@@ -288,12 +288,6 @@ function Set-TargetResource {
                     _SetVMRAM -vm $vm -RAM $vRAM
                 }
 
-<<<<<<< HEAD
-            # Set RAM
-            if (-not (_TestVMRAM -vm $vm -RAM $vRAM)) {
-                _SetVMRAM -vm $vm -RAM $vRAM
-            }
-=======
                 # Set vCPU
                 if (-not (_TestVMCPU -vm $vm -TotalvCPU $TotalvCPU -CoresPerSocket $CoresPerSocket)) {
                     _SetVMCPU -vm $vm -TotalvCPU $TotalvCPU -CoresPerSocket $CoresPerSocket
@@ -312,7 +306,6 @@ function Set-TargetResource {
                         _SetTags -VM $VM -Tags $Tags
                     }
                 }
->>>>>>> upstream/master
 
                 # Set disks
                 if (-not (_TestVMDisks -vm $vm -DiskSpec $Disks)) {
@@ -326,16 +319,10 @@ function Set-TargetResource {
                 if (-not (_TestVMPowerState -vm $vm -PowerOnAfterCreation $PowerOnAfterCreation)) {
                     _SetVMPowerState -vm $vm
 
-<<<<<<< HEAD
-            # Power on VM and wait for OS customization to complete
-            if (-not (_TestVMPowerState -vm $vm -PowerOnAfterCreation $PowerOnAfterCreation)) {
-                _SetVMPowerState -vm $vm
-=======
                     # Wait for OS customization to complete if this is a newly created VM
                     if ($newVM -eq $true) {
                         _WaitForGuestCustomization -vm $vm
                     }
->>>>>>> upstream/master
 
                     _WaitForVMTools -vm $vm -Credential $GuestCredentials
                 }
@@ -354,7 +341,6 @@ function Set-TargetResource {
                 } else {
                     Write-Warning -Message 'VM is powered off. Skipping guest check'
                 }
-<<<<<<< HEAD
 
                 # Set guest disks
                 if (-not (_TestGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials)) {
@@ -370,6 +356,13 @@ function Set-TargetResource {
                     _MoveVM -VM $VM -VMFolder $VMFolder
                 }
             }
+
+            # VM Tools
+            if ($UpdateTools) {
+                if (-not (_TestVMTools -VM $VM)) {
+                    _UpdateTools -VM $VM
+                }    
+            }   
 
             # Run any provisioners
             if ($Provisioners -ne [string]::Empty) {
@@ -388,34 +381,6 @@ function Set-TargetResource {
                                 $params = $PSBoundParameters
                                 $params.vm = $vm
                                 (& $provPath $params)
-=======
-                
-                # VM Tools
-                if ($UpdateTools) {
-                    if (-not (_TestVMTools -VM $VM)) {
-                        _UpdateTools -VM $VM
-                    }    
-                }                
-               
-                # Run any provisioners
-                if ($PSBoundParameters.ContainsKey('Provisioners')) {
-                    foreach ($p in (ConvertFrom-Json -InputObject $Provisioners)) {
-                        $testPath = "$PSScriptRoot\Provisioners\$($p.name)\Test.ps1"
-                        if (Test-Path -Path $testPath) {
-
-                            $params = $PSBoundParameters
-                            $params.vm = $vm
-                            $params.ProvOptions = $p.options
-
-                            $provisionerResult = (& $testPath $params)
-                            if ($provisionerResult -ne $true) {
-                                $provPath = "$PSScriptRoot\Provisioners\$($p.name)\Provision.ps1"
-                                if (Test-Path -Path $testPath) {
-                                    $params = $PSBoundParameters
-                                    $params.vm = $vm
-                                    (& $provPath $params)
-                                }
->>>>>>> upstream/master
                             }
                         }
                     }
@@ -601,9 +566,6 @@ function Test-TargetResource {
     $cpuResult = _TestVMCPU -vm $vm -TotalvCPU $TotalvCPU -CoresPerSocket $CoresPerSocket
     $match = if ( $cpuResult) { 'MATCH' } else { 'MISMATCH' }
     Write-Verbose -Message "vCPU: $match"
-<<<<<<< HEAD
-
-=======
     
     # Test VM folder
     $folderResult = $true
@@ -620,7 +582,6 @@ function Test-TargetResource {
     }
     $match = if ( $tagResult) { 'MATCH' } else { 'MISMATCH' }
     Write-Verbose -Message "Tags: $match"    
->>>>>>> upstream/master
 
     # Disks
     $vmDiskResult = _TestVMDisks -vm $vm -DiskSpec $Disks
@@ -645,7 +606,6 @@ function Test-TargetResource {
     } else {
         Write-Warning -Message 'VM is powered off. Skipping guest disk check'
     }
-<<<<<<< HEAD
 
     # NICs
     # TODO
@@ -663,8 +623,6 @@ function Test-TargetResource {
     $match = if ( $powerResult) { 'MATCH' } else { 'MISMATCH' }
     Write-Verbose -Message "Power state: $match"
 
-=======
->>>>>>> upstream/master
     #endregion
     
     # VM Tools
@@ -696,21 +654,6 @@ function Test-TargetResource {
 
     _DisconnectFromvCenter -vCenter $vCenter
     
-<<<<<<< HEAD
-    if (-not ($ramResult -and $cpuResult -and $vmDiskResult -and $guestDiskResult -and $powerResult -and $folderResult)) {
-        Write-Debug -Message "One or more tests failed"
-        return $false
-    }
-    
-    Write-Debug -Message 'Provisioner results:'
-    Write-Debug -Message ($provisionerResults | Format-List | Out-String)  
-    
-    if (($provisionerResults | Where-Object {$_ -ne $true }).Count -gt 0) {
-        Write-Verbose -Message "One or more provisioners failed tests"
-        return $false
-    }
-
-=======
     if (-not ($ramResult -and $cpuResult -and $vmDiskResult -and $guestDiskResult -and $powerResult -and $folderResult -and $tagResult -and $toolsResult)) {
         Write-Debug -Message "One or more tests failed"
         return $false
@@ -724,7 +667,6 @@ function Test-TargetResource {
         return $false
     }
     
->>>>>>> upstream/master
     return $true
 }
 
