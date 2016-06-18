@@ -19,7 +19,8 @@ process {
 
         # Get target IP address
         $t = Get-VM -Id $options.vm.Id -Verbose:$false -Debug:$false
-        $ip = $t.Guest.IPAddress | Where-Object { ($_ -notlike '169.*') -and ( $_ -notlike '*:*') } | Select-Object -First 1
+        #$ip = $t.Guest.IPAddress | Where-Object { ($_ -notlike '169.*') -and ( $_ -notlike '*:*') } | Select-Object -First 1
+        $ip = _GetGuestVMIPAddress -VM $t
 
         if ($null -ne $ip -and $ip -ne [string]::Empty) {
             $chefSvc = Invoke-Command -ComputerName $ip -Credential $Options.GuestCredentials -ScriptBlock { Get-Service -Name chef-client -ErrorAction SilentlyContinue } -Verbose:$false
@@ -103,9 +104,17 @@ process {
                     }
                     $refJson = $chefOptions.attributes | ConvertTo-Json
                     $diffJson = $chefNode.normal | ConvertTo-Json
+
+                    Write-Debug -Message 'Ref'
+                    Write-Debug -Message $refJson
+                    Write-Debug -Message 'Diff'
+                    Write-Debug -Message $diffJson
+
                     if ($diffJson -ne $refJson) {
                         Write-Verbose -Message "Chef attributes: MISMATCH"
                         $attributeResult = $false
+                    } else {
+                        Write-Verbose -Message "Chef attributes: MATCH"
                     }
                 } else {
                     $chefNodeResult = $false

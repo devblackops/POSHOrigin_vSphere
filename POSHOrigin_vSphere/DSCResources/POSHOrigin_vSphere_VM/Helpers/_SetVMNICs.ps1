@@ -20,7 +20,7 @@ function _SetVMNICs {
     $success = $false
     $specClone = $null
                     
-    $netConfigs = @(ConvertFrom-Json -InputObject $NICSpec)
+    $netConfigs = $NICSpec | ConvertFrom-Json
     Write-Debug "Configuration NIC count: $($netConfigs.count)"
 
     $vmNICs = @($vm | Get-NetworkAdapter -Verbose:$false -Debug:$false)
@@ -125,10 +125,17 @@ function _SetVMNICs {
                             IpMode = 'UseStaticIp'
                             IpAddress = $netConfig.IPAddress
                             SubnetMask = $netConfig.SubnetMask
-                            DefaultGateway = $netConfig.DefaultGateway
-                            Dns = $netConfig.DNSServers
+                            #DefaultGateway = $netConfig.DefaultGateway
+                            #Dns = $netConfig.DNSServers
                             Verbose = $false
                         }
+                        if ($netConfig.DefaultGateway) {
+                            $params.DefaultGateway = $netConfig.DefaultGateway
+                        }
+                        if ($netConfig.DNSServers) {
+                            $params.Dns = $netConfig.DNSServers
+                        }                        
+                        
                         if ($vmNIC -ne $null) {
                             $params.NetworkAdapterMac = $vmNic.MacAddress
                         }

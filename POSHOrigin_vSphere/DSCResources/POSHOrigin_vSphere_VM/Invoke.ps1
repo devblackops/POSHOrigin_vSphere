@@ -22,7 +22,7 @@ switch ($type) {
     'vm' {
         $provJson = ''
         if ($null -ne $Options.options.provisioners) {
-            $provJson = ConvertTo-Json -InputObject $Options.options.provisioners -Depth 999
+            $provJson = ConvertTo-Json -InputObject $Options.options.provisioners -Depth 100
         }
 
         if ($null -eq $provJson) {
@@ -41,11 +41,16 @@ switch ($type) {
                 vRAM = $Options.options.vRAM
                 Datacenter = $Options.options.Datacenter
                 Cluster = $Options.options.Cluster
+                ResourcePool = $Options.options.ResourcePool
+                VMHost = $Options.options.VMHost
+                vApp = $Options.options.vApp
                 VMFolder = $Options.options.VMFolder
+                Tags = $Options.options.Tags
+                UpdateTools = $Options.options.UpdateTools
                 InitialDatastore = $Options.options.InitialDatastore
-                Disks = ConvertTo-Json -InputObject $Options.options.disks -Depth 999
+                Disks = ConvertTo-Json -InputObject $Options.options.disks -Depth 100
                 CustomizationSpec = $Options.options.CustomizationSpec
-                Networks = ConvertTo-Json -InputObject $Options.options.networks -Depth 999
+                Networks = ConvertTo-Json -InputObject $Options.options.networks -Depth 100
                 Provisioners = $provJson
             }
 
@@ -147,7 +152,7 @@ switch ($type) {
 
                 $provJson = [string]::empty
                 if ($ResourceOptions.options.provisioners) {
-                    $provJson = ConvertTo-Json -InputObject $ResourceOptions.options.provisioners -Depth 999
+                    $provJson = ConvertTo-Json -InputObject $ResourceOptions.options.provisioners -Depth 100
                 }
 
                 if (-Not $provJson) {
@@ -165,7 +170,12 @@ switch ($type) {
                     vRAM = $ResourceOptions.options.vRAM
                     Datacenter = $ResourceOptions.options.Datacenter
                     Cluster = $ResourceOptions.options.Cluster
+                    VMHost = $ResourceOptions.options.VMHost
+                    ResourcePool = $ResourceOptions.options.ResourcePool
+                    vApp = $ResourceOptions.options.vApp
                     VMFolder = $ResourceOptions.options.VMFolder
+                    UpdateTools = $ResourceOptions.options.UpdateTools
+                    Tags = ConvertTo-Json -InputObject $ResourceOptions.options.Tags
                     InitialDatastore = $ResourceOptions.options.InitialDatastore
                     Disks = ConvertTo-Json -InputObject $ResourceOptions.options.disks
                     CustomizationSpec = $ResourceOptions.options.CustomizationSpec

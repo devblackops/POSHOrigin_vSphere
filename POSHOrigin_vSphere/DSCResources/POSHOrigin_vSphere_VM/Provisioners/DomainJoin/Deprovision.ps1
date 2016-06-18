@@ -14,7 +14,8 @@ process {
     $djOptions = $provOptions | Where-Object {$_.name -eq 'DomainJoin'}
 
     $t = Get-VM -Id $Options.vm.Id -Verbose:$false -Debug:$false
-    $ip = $t.Guest.IPAddress | Where-Object { ($_ -notlike '169.*') -and ( $_ -notlike '*:*') } | Select-Object -First 1
+    #$ip = $t.Guest.IPAddress | Where-Object { ($_ -notlike '169.*') -and ( $_ -notlike '*:*') } | Select-Object -First 1
+    $ip = _GetGuestVMIPAddress -VM $t
     if ($null -ne $ip -and $ip -ne [string]::Empty) {
 
         $cmd = {

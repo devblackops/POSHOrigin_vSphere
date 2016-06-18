@@ -155,7 +155,7 @@ try
 
         # Force convert to array
         $psm1Files = @(
-            Get-ChildItem -Path $RepoRoot\DscResources -Recurse -Filter '*.psm1' -File |
+            Get-ChildItem -Path $RepoRoot\POSHOrigin_vSphere\DscResources -Recurse -Filter '*.psm1' -File |
                 Foreach-Object {
                     # Ignore Composite configurations
                     # They requires additional resources to be installed on the box

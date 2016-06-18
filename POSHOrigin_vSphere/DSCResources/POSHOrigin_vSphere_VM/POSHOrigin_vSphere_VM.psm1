@@ -48,6 +48,12 @@ function Get-TargetResource {
 
         [System.String]
         $CustomizationSpec,
+        
+        [System.String]
+        $Tags,
+        
+        [System.Boolean]
+        $UpdateTools = $false,
 
         [System.Management.Automation.PSCredential]
         $GuestCredentials,
@@ -72,6 +78,15 @@ function Get-TargetResource {
 
         [System.String]
         $Cluster,
+        
+        [System.String]
+        $ResourcePool,
+
+        [System.String]
+        $VMHost,
+        
+        [System.String]
+        $vApp,
 
         [System.String]
         $Provisioners
@@ -96,6 +111,11 @@ function Get-TargetResource {
         Datacenter =$Datacenter
         InitialDatastore = $InitialDatastore
         Cluster = $Cluster
+        ResourcePool = $ResourcePool
+        VMHost = $VMHost
+        Tags = $Tags
+        UpdateTools = $UpdateTools
+        vApp = $vApp
         Provisioners = $Provisioners
     }
 
@@ -143,6 +163,12 @@ function Set-TargetResource {
 
         [System.String]
         $CustomizationSpec,
+        
+        [System.String]
+        $Tags,
+        
+        [System.Boolean]
+        $UpdateTools = $false,
 
         [System.Management.Automation.PSCredential]
         $GuestCredentials,
@@ -167,6 +193,15 @@ function Set-TargetResource {
 
         [System.String]
         $Cluster,
+        
+        [System.String]
+        $ResourcePool,
+        
+        [System.String]
+        $VMHost,
+        
+        [System.String]
+        $vApp,
 
         [System.String]
         $Provisioners
@@ -189,68 +224,137 @@ function Set-TargetResource {
 
                 $diskSpec = ConvertFrom-Json -InputObject $Disks
                 $format = $diskSpec[0].Format
-
-                $params = @{
-                    Name = $Name
-                    VMTemplate = $VMTemplate
-                    Cluster = $Cluster
-                    InitialDatastore = $InitialDatastore
-                    DiskFormat = $format
-                    NICSpec = $Networks
-                    CustomizationSpec = $CustomizationSpec
-                    #IPAMFqdn = $IPAMFqdn
-                    #IPAMCredentials =  $IPAMCredentials
+                
+                $continue = $true
+                
+                # Let's validate that only ONE of the following options was specified for the VM location
+                # Cluster, ResourcePool, VMHost, vApp                
+                $search = @('Cluster', 'ResourcePool', 'VMHost', 'vApp')
+                if (($PSBoundParameters.Keys | Where-Object {$_ -in $search}).Count -gt 1) {
+                    $continue = $false
+                    $msg = "More than one option was specified for VM location. Please choose ONE of the following options"
+                    $msg += "Cluster, ResourcePool, VMHost, or vApp"
+                    Write-Error -Message $msg   
                 }
-                if ($VMFolder -ne [string]::empty) {
-                    $params.Folder = $VMFolder
-                }
-                $vm = _CreateVM @params
-                if ($null -ne $vm) {
-                    Write-Verbose -Message 'VM created successfully'
-                    $newVm = $true
-                }
+                                              
+                if ($continue) {
+                    $params = @{
+                        Name = $Name
+                        VMTemplate = $VMTemplate
+                        InitialDatastore = $InitialDatastore
+                        DiskFormat = $format
+                        NICSpec = $Networks
+                        CustomizationSpec = $CustomizationSpec
+                        #IPAMFqdn = $IPAMFqdn
+                        #IPAMCredentials =  $IPAMCredentials
+                    }
+                    if ($PSBoundParameters.ContainsKey('VMFolder')) {
+                        $params.Folder = $VMFolder
+                    }                    
+                    if ($PSBoundParameters.ContainsKey('Cluster')) {
+                        $params.Cluster = $Cluster
+                    }
+                    if ($PSBoundParameters.ContainsKey('ResourcePool')) {
+                        $params.ResourcePool = $ResourcePool
+                    }
+                    if ($PSBoundParameters.ContainsKey('VMHost')) {
+                        $params.VMHost = $VMHost
+                    }
+                    if ($PSBoundParameters.ContainsKey('vApp')) {
+                        $params.vApp = $vApp
+                    }
+                     
+                    $vm = _CreateVM @params
+                    if ($null -ne $vm) {
+                        Write-Verbose -Message 'VM created successfully'
+                        $newVm = $true
+                    } else {
+                        return
+                    }
 
-                # Set NICs
-                $setNICResult = $false
-                $setNICResult = _SetVMNICs -vm $vm -NICSpec $Networks -CustomizationSpec $CustomizationSpec -IPAMFqdn $IPAMFqdn -IPAMCredentials $IPAMCredentials
+                    # Set NICs
+                    $setNICResult = $false
+                    $setNICResult = _SetVMNICs -vm $vm -NICSpec $Networks -CustomizationSpec $CustomizationSpec -IPAMFqdn $IPAMFqdn -IPAMCredentials $IPAMCredentials
 
-                if ($setNICResult -eq $false) {
-                    throw 'Failed to set NICs after VM creation. Aborting...'
+                    if ($setNICResult -eq $false) {
+                        throw 'Failed to set NICs after VM creation. Aborting...'
+                    }
                 }
             }
+            
+            if ($vm) {
+                # Set RAM
+                if (-not (_TestVMRAM -vm $vm -RAM $vRAM)) {
+                    _SetVMRAM -vm $vm -RAM $vRAM
+                }
 
+<<<<<<< HEAD
             # Set RAM
             if (-not (_TestVMRAM -vm $vm -RAM $vRAM)) {
                 _SetVMRAM -vm $vm -RAM $vRAM
             }
+=======
+                # Set vCPU
+                if (-not (_TestVMCPU -vm $vm -TotalvCPU $TotalvCPU -CoresPerSocket $CoresPerSocket)) {
+                    _SetVMCPU -vm $vm -TotalvCPU $TotalvCPU -CoresPerSocket $CoresPerSocket
+                }
+                
+                # Set VM Folder
+                if ($PSBoundParameters.ContainsKey('VMFolder')) {
+                    if (-Not (_TestVMFolder -VM $VM -VMFolder $VMFolder)) {
+                        _MoveVM -VM $VM -VMFolder $VMFolder
+                    }
+                }
+                
+                # Set tags
+                if ($PSBoundParameters.ContainsKey('Tags')) {                    
+                    if (-not (_TestTags -VM $VM -Tags $Tags)) {                        
+                        _SetTags -VM $VM -Tags $Tags
+                    }
+                }
+>>>>>>> upstream/master
 
-            # Set vCPU
-            if (-not (_TestVMCPU -vm $vm -TotalvCPU $TotalvCPU -CoresPerSocket $CoresPerSocket)) {
-                _SetVMCPU -vm $vm -TotalvCPU $TotalvCPU -CoresPerSocket $CoresPerSocket
-            }
+                # Set disks
+                if (-not (_TestVMDisks -vm $vm -DiskSpec $Disks)) {
+                    $updatedVMDisks = _SetVMDisks -vm $vm -DiskSpec $Disks
+                }
+                
+                # Set NICS
+                # TODO
 
-            # Set disks
-            if (-not (_TestVMDisks -vm $vm -DiskSpec $Disks)) {
-                $updatedVMDisks = _SetVMDisks -vm $vm -DiskSpec $Disks
-            }
+                # Power on VM and wait for OS customization to complete
+                if (-not (_TestVMPowerState -vm $vm -PowerOnAfterCreation $PowerOnAfterCreation)) {
+                    _SetVMPowerState -vm $vm
 
+<<<<<<< HEAD
             # Power on VM and wait for OS customization to complete
             if (-not (_TestVMPowerState -vm $vm -PowerOnAfterCreation $PowerOnAfterCreation)) {
                 _SetVMPowerState -vm $vm
+=======
+                    # Wait for OS customization to complete if this is a newly created VM
+                    if ($newVM -eq $true) {
+                        _WaitForGuestCustomization -vm $vm
+                    }
+>>>>>>> upstream/master
 
-                # Wait for OS customization to complete if this is a newly created VM
-                if ($newVM -eq $true) {
-                    _WaitForGuestCustomization -vm $vm
+                    _WaitForVMTools -vm $vm -Credential $GuestCredentials
                 }
+                
+                # Guest disks
+                $vm = Get-VM -Name $Name -Verbose:$false -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($VM.PowerState -eq 'PoweredOn') {
+                    if ($updatedVMDisks -eq $true) {
+                        _refreshHostStorageCache -vm $vm -Credential $GuestCredentials
+                    }
 
-                _WaitForVMTools -vm $vm -Credential $GuestCredentials
-            }
-
-            $vm = Get-VM -Name $Name -Verbose:$false -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($VM.PowerState -eq 'PoweredOn') {
-                if ($updatedVMDisks -eq $true) {
-                    _refreshHostStorageCache -vm $vm -Credential $GuestCredentials
+                    # Set guest disks
+                    if (-not (_TestGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials)) {
+                        _SetGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials
+                    }
+                } else {
+                    Write-Warning -Message 'VM is powered off. Skipping guest check'
                 }
+<<<<<<< HEAD
 
                 # Set guest disks
                 if (-not (_TestGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials)) {
@@ -284,6 +388,34 @@ function Set-TargetResource {
                                 $params = $PSBoundParameters
                                 $params.vm = $vm
                                 (& $provPath $params)
+=======
+                
+                # VM Tools
+                if ($UpdateTools) {
+                    if (-not (_TestVMTools -VM $VM)) {
+                        _UpdateTools -VM $VM
+                    }    
+                }                
+               
+                # Run any provisioners
+                if ($PSBoundParameters.ContainsKey('Provisioners')) {
+                    foreach ($p in (ConvertFrom-Json -InputObject $Provisioners)) {
+                        $testPath = "$PSScriptRoot\Provisioners\$($p.name)\Test.ps1"
+                        if (Test-Path -Path $testPath) {
+
+                            $params = $PSBoundParameters
+                            $params.vm = $vm
+                            $params.ProvOptions = $p.options
+
+                            $provisionerResult = (& $testPath $params)
+                            if ($provisionerResult -ne $true) {
+                                $provPath = "$PSScriptRoot\Provisioners\$($p.name)\Provision.ps1"
+                                if (Test-Path -Path $testPath) {
+                                    $params = $PSBoundParameters
+                                    $params.vm = $vm
+                                    (& $provPath $params)
+                                }
+>>>>>>> upstream/master
                             }
                         }
                     }
@@ -293,7 +425,7 @@ function Set-TargetResource {
             Write-Verbose '[Ensure == Absent] Beginning deprovisioning process'
 
             # Run through any provisioners we have defined and execute the 'deprovision' script
-            if ($Provisioners -ne [string]::Empty) {
+            if ($PSBoundParameters.ContainsKey('Provisioners')) {
                 foreach ($p in (ConvertFrom-Json -InputObject $Provisioners)) {
                     $testPath = "$PSScriptRoot\Provisioners\$($p.name)\Test.ps1"
                     if (Test-Path -Path $testPath) {
@@ -386,6 +518,12 @@ function Test-TargetResource {
 
         [System.String]
         $CustomizationSpec,
+        
+        [System.String]
+        $Tags,
+        
+        [System.Boolean]
+        $UpdateTools = $false,
 
         [System.Management.Automation.PSCredential]
         $GuestCredentials,
@@ -410,6 +548,15 @@ function Test-TargetResource {
 
         [System.String]
         $Cluster,
+        
+        [System.String]
+        $ResourcePool,
+        
+        [System.String]
+        $VMHost,
+        
+        [System.String]
+        $vApp,
 
         [System.String]
         $Provisioners
@@ -454,12 +601,39 @@ function Test-TargetResource {
     $cpuResult = _TestVMCPU -vm $vm -TotalvCPU $TotalvCPU -CoresPerSocket $CoresPerSocket
     $match = if ( $cpuResult) { 'MATCH' } else { 'MISMATCH' }
     Write-Verbose -Message "vCPU: $match"
+<<<<<<< HEAD
 
+=======
+    
+    # Test VM folder
+    $folderResult = $true
+    if ($PSBoundParameters.ContainsKey('VMFolder')) {
+        $folderResult = _TestVMFolder -VM $vm -VMFolder $VMFolder
+        $match = if ( $folderResult) { 'MATCH' } else { 'MISMATCH' }
+        Write-Verbose -Message "VM Folder: $match"
+    }
+    
+    # Tags
+    $tagResult = $true
+    if ($PSBoundParameters.ContainsKey('Tags')) {
+        $tagResult = _TestTags -VM $VM -Tags $Tags
+    }
+    $match = if ( $tagResult) { 'MATCH' } else { 'MISMATCH' }
+    Write-Verbose -Message "Tags: $match"    
+>>>>>>> upstream/master
 
     # Disks
     $vmDiskResult = _TestVMDisks -vm $vm -DiskSpec $Disks
     $match = if ( $vmDiskResult) { 'MATCH' } else { 'MISMATCH' }
     Write-Verbose -Message "VM Disks: $match"
+    
+    # NICs
+    # TODO
+    
+    # Power state
+    $powerResult = _TestVMPowerState -vm $vm -PowerOnAfterCreation $PowerOnAfterCreation
+    $match = if ( $powerResult) { 'MATCH' } else { 'MISMATCH' }
+    Write-Verbose -Message "Power state: $match"
 
     # Guest disks
     $guestDiskResult = $true
@@ -471,6 +645,7 @@ function Test-TargetResource {
     } else {
         Write-Warning -Message 'VM is powered off. Skipping guest disk check'
     }
+<<<<<<< HEAD
 
     # NICs
     # TODO
@@ -488,11 +663,22 @@ function Test-TargetResource {
     $match = if ( $powerResult) { 'MATCH' } else { 'MISMATCH' }
     Write-Verbose -Message "Power state: $match"
 
+=======
+>>>>>>> upstream/master
     #endregion
+    
+    # VM Tools
+    if ($UpdateTools) {
+        $toolsResult = _TestVMTools -VM $VM
+        $match = if ( $toolsResult) { 'Current' } else { 'OUT OF DATE/NOT INSTALLED' }
+        Write-Verbose -Message "VM Tools: $match"    
+    } else {
+        $toolsResult = $true
+    }    
 
     # Test provisioners
     $provisionerResults = @()
-    if ($Provisioners -ne [string]::Empty) {
+    if ($PSBoundParameters.ContainsKey('Provisioners')) {
         foreach ($p in (ConvertFrom-Json -InputObject $Provisioners)) {
             $provPath = "$PSScriptRoot\Provisioners\$($p.name)\Test.ps1"
             if (Test-Path -Path $provPath) {
@@ -510,6 +696,7 @@ function Test-TargetResource {
 
     _DisconnectFromvCenter -vCenter $vCenter
     
+<<<<<<< HEAD
     if (-not ($ramResult -and $cpuResult -and $vmDiskResult -and $guestDiskResult -and $powerResult -and $folderResult)) {
         Write-Debug -Message "One or more tests failed"
         return $false
@@ -523,6 +710,21 @@ function Test-TargetResource {
         return $false
     }
 
+=======
+    if (-not ($ramResult -and $cpuResult -and $vmDiskResult -and $guestDiskResult -and $powerResult -and $folderResult -and $tagResult -and $toolsResult)) {
+        Write-Debug -Message "One or more tests failed"
+        return $false
+    }
+    
+    Write-Debug -Message 'Provisioner results:'
+    Write-Debug -Message ($provisionerResults | Format-List | Out-String)  
+    
+    if (($provisionerResults | Where-Object {$_ -ne $true }).Count -gt 0) {
+        Write-Verbose -Message "One or more provisioners failed tests"
+        return $false
+    }
+    
+>>>>>>> upstream/master
     return $true
 }
 
