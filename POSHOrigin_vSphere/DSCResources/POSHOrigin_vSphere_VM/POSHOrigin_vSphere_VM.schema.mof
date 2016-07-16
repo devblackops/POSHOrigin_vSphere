@@ -1,0 +1,31 @@
+
+[ClassVersion("1.0"), FriendlyName("VM")]
+class POSHOrigin_vSphere_VM : OMI_BaseResource
+{
+    [Key] String Name;
+    [Required, ValueMap{"Present","Absent"}, Values{"Present","Absent"}] String Ensure;
+    [Write] Boolean PowerOnAfterCreation;
+    [Write, EmbeddedInstance("MSFT_Credential")] String vCenterCredentials;
+    [Write] Sint32 TotalvCPU;
+    [Write] Sint32 CoresPerSocket;
+    [Write] Sint32 vRAM;
+    [Write] String Disks;
+    [Write] String Networks;
+    [Write] String VMTemplate;
+    [Write] String VMFolder;
+    [Write] String CustomizationSpec;
+    [Write] String Tags;
+    [Write] Boolean UpdateTools;
+    [Write, EmbeddedInstance("MSFT_Credential")] String GuestCredentials;
+    [Write, EmbeddedInstance("MSFT_Credential")] String IPAMCredentials;
+    [Write, EmbeddedInstance("MSFT_Credential")] String DomainJoinCredentials;
+    [Write] String IPAMFqdn;
+    [Write] String vCenter;
+    [Write] String Datacenter;
+    [Write] String InitialDatastore;
+    [Write] String Cluster;
+    [Write] String ResourcePool;
+    [Write] String VMHost;
+    [Write] String vApp;
+    [Write] String Provisioners;
+};
