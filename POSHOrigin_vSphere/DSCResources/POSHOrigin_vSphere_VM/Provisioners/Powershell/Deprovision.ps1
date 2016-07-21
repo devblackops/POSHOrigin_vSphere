@@ -11,9 +11,15 @@ begin {
 process {
     $scriptPath = $Options.ProvOptions.Path
     
-    if (Test-Path -Path $scriptPath) {
+    if (($scriptPath.StartsWith('http://')) -or ($scriptPath.StartsWith('https://'))) {
+        $filename = $scriptPath.Substring($scriptPath.LastIndexOf('/') + 1)
+        $output = "$($ENV:Temp)\$filename"
+        Invoke-WebRequest -Uri $scriptPath -OutFile $output
+        & $output -Options $Options -Mode 'Deprovision'
+    } elseif (Test-Path -Path $scriptPath) {
         & $scriptPath -Options $Options -Mode 'Deprovision'
     } else {
+     
         Write-Error -Message "Unable to find provisioner script [$scriptPath]"
     }
 }
