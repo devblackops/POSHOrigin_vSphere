@@ -158,6 +158,13 @@ switch ($type) {
                 if (-Not $provJson) {
                     $provJson = [string]::empty
                 }
+
+                if ($ResourceOptions.options.Tags) {
+                    $tags = ConvertTo-Json -InputObject $ResourceOptions.options.Tags
+                } else {
+                    $tags = @()
+                }
+                
                 VM $ResourceOptions.Name {
                     Ensure = $ResourceOptions.options.Ensure
                     Name = $ResourceOptions.Name
@@ -175,7 +182,7 @@ switch ($type) {
                     vApp = $ResourceOptions.options.vApp
                     VMFolder = $ResourceOptions.options.VMFolder
                     UpdateTools = $ResourceOptions.options.UpdateTools
-                    Tags = ConvertTo-Json -InputObject $ResourceOptions.options.Tags
+                    Tags = $tags
                     InitialDatastore = $ResourceOptions.options.InitialDatastore
                     Disks = ConvertTo-Json -InputObject $ResourceOptions.options.disks
                     CustomizationSpec = $ResourceOptions.options.CustomizationSpec
