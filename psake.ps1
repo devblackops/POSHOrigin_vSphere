@@ -22,6 +22,8 @@ task Init {
     Import-Module $modules -Verbose:$false -Force
 }
 
+task Test -Depends Init, Analyze, Pester
+
 task Analyze {
     $saResults = Invoke-ScriptAnalyzer -Path $sut -Severity Error -Recurse -Verbose:$false
     if ($saResults) {
@@ -44,7 +46,7 @@ task Pester {
     }
 }
 
-task Deploy -depends Test, GenerateHelp {
+task Deploy -depends Test {
     # Gate deployment
     if(
         $ENV:BHBuildSystem -ne 'Unknown' -and
