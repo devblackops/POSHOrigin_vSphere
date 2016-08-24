@@ -11,6 +11,18 @@ function _GetGuestVMIPAddress{
     $t = Get-VM -Id $VM.Id -Verbose:$false -Debug:$false
     $ips = $t.Guest.IPAddress | Where-Object { ($_ -notlike '169.*') -and ( $_ -notlike '*:*') }
 
+    # If we didn't get a valid IP, let's keep trying a few times. Sometimes vCenter takes awhile
+    # to report back the IP address after an operation is performed on the VM.
+    if (-not $ips) {
+        (1..6) | % {
+            Start-Sleep -Seconds 10
+            $t = Get-VM -Id $VM.Id -Verbose:$false -Debug:$false
+            $ips = $t.Guest.IPAddress | Where-Object { ($_ -notlike '169.*') -and ( $_ -notlike '*:*') }
+            if ($ips) { break }
+        }
+    }
+
+    # Looks for a pingable IP address and return it if found
     if ($ips) {
         $goodIp = $null
         foreach ($ip in $ips) {
@@ -21,12 +33,7 @@ function _GetGuestVMIPAddress{
         }
         return $goodIp
     } else {
-        return $null
-    }
-
-    if ($ip -ne [string]::Empty) {
-        return $ip
-    } else {
+        Write-Error -Message 'Unable to retrieve a valid IP address from VM'
         return $null
     }
 }
