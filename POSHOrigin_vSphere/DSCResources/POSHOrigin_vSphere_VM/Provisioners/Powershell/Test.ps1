@@ -14,7 +14,7 @@ process {
     if (($scriptPath.StartsWith('http://')) -or ($scriptPath.StartsWith('https://'))) {
         $filename = $scriptPath.Substring($scriptPath.LastIndexOf('/') + 1)
         $output = "$($ENV:Temp)\$filename"
-        Invoke-WebRequest -Uri $scriptPath -OutFile $output
+        Invoke-WebRequest -Uri $scriptPath -OutFile $output | Out-Null
         $result = & $output -Options $Options -Mode 'Test'
         return $result
     } elseif (Test-Path -Path $scriptPath) {
