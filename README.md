@@ -201,9 +201,9 @@ Bootstraps the Chef client on the VM after provisioning. Also registers the Chef
 | RunList       | hashtable[] | False    | Set of recipes or roles to assign to the node
 | Environment   | string      | False    | Chef environment to assign the node to
 | Attributes    | hashtable   | False    | Hashtable of attributes to assign to the node
-| Automate_url  | string      | False    | URL for your Chef Automate server
-| Automate_token| string      | False    | Token for authenticating with Chef Automate
-| Automate_cert | string      | False    | URL to the Chef Automate cert to Chefs trusted certs folder
+| AutomateUrl   | string      | False    | URL for your Chef Automate server
+| AutomateToken | string      | False    | Token for authenticating with Chef Automate
+| AutomateCert  | string      | False    | URL to the Chef Automate cert to Chefs trusted certs folder
 
 ```powerShell
 Provisioners = @(
@@ -220,9 +220,9 @@ Provisioners = @(
              @{ recipe = 'myapp::default' }
           )
           environment = 'prod'
-          automate_url = 'https://chefautomatesvr.mydomain.com/data-collector/v0/'
-          automate_token = '<CHEF_AUTOMATE_TOKEN>'
-          automate_cert = '<URL to issuing CA .crt file for chef automate>'
+          automateUrl = 'https://chefautomatesvr.mydomain.com/data-collector/v0/'
+          automateToken = '<CHEF_AUTOMATE_TOKEN>'
+          automateCert = '<URL to issuing CA .crt file for chef automate>'
           attributes = @{
              myapp = @{
                 prop1 = 42

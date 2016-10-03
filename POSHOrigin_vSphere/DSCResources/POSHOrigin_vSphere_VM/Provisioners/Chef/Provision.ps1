@@ -35,9 +35,9 @@ process {
                         $cert = $provOptions.cert
                         $certName = $cert.split('/') | Select-Object -Last 1
                         $runList = $provOptions.runList
-                        $automateUrl = $provOptions.automate_url
-                        $automateToken = $provOptions.automate_token
-                        $automateCert = $provOptions.automate_cert
+                        $automateUrl = $provOptions.automateUrl
+                        $automateToken = $provOptions.automateToken
+                        $automateCert = $provOptions.automateCert
                         if ($automateCert) {
                             $automateCertName = $automateCert.split('/') | Select-Object -Last 1
                         }
@@ -150,9 +150,9 @@ node_name               '$fqdnlower'
                 $automateCmd = {
                     $VerbosePreference = $Using:VerbosePreference
                     $chefOptions = $args[0]
-                    $automateUrl = $chefOptions.automate_url
-                    $automateToken = $chefOptions.automate_token
-                    $automateCert = $chefOptions.automate_cert
+                    $automateUrl = $chefOptions.automateUrl
+                    $automateToken = $chefOptions.automateToken
+                    $automateCert = $chefOptions.automateCert
                     $automateCertName = $automateCert.split('/') | Select-Object -Last 1
                     $testExists = Test-Path "C:\chef\trusted_certs\$automateCertName"
                     if (!($testExists)) {
@@ -203,7 +203,7 @@ node_name               '$fqdnlower'
                     ArgumentList = $chefOptions
                 }
 
-                if ($chefOptions.automate_url) {
+                if ($chefOptions.automateUrl) {
                     Invoke-Command @automateParams
                 }
 

@@ -120,9 +120,9 @@ process {
                     $automateCmd = {
                         $result = $true
                         $chefOptions = $args[0]
-                        $automateUrl = $chefOptions.automate_url
-                        $automateToken = $chefOptions.automate_token
-                        $automateCert = $chefOptions.automate_cert
+                        $automateUrl = $chefOptions.automateUrl
+                        $automateToken = $chefOptions.automateToken
+                        $automateCert = $chefOptions.automateCert
                         $automateCertName = $automateCert.split('/') | Select-Object -Last 1
                         $testExists = Test-Path "C:\chef\trusted_certs\$automateCertName"
                         if (!($testExists)) {
@@ -152,7 +152,7 @@ process {
                         ScriptBlock = $automateCmd
                         ArgumentList = $chefOptions
                     }
-                    if ($chefOptions.automate_url) {
+                    if ($chefOptions.automateUrl) {
                         $testAutomate = Invoke-Command @automateParams
                         if (!($testAutomate)) {
                             $chefNodeResult = $false
