@@ -116,6 +116,51 @@ process {
                     } else {
                         Write-Verbose -Message "Chef attributes: MATCH"
                     }
+
+                    $automateCmd = {
+                        $result = $true
+                        $chefOptions = $args[0]
+                        $automateUrl = $chefOptions.automateUrl
+                        $automateToken = $chefOptions.automateToken
+                        $automateCert = $chefOptions.automateCert
+                        $automateCertName = $automateCert.split('/') | Select-Object -Last 1
+                        $testExists = Test-Path "C:\chef\trusted_certs\$automateCertName"
+                        if (!($testExists)) {
+                            $result = $false
+                        } else {
+                            Invoke-WebRequest -Uri "$automateCert" -OutFile "C:\chef\$automateCertName" | Out-Null
+                            $serverVersion = Get-Content "C:\chef\trusted_certs\$automateCertName"
+                            $currentVersion = Get-Content "C:\chef\$automateCertName"
+                            $compare = Compare-Object $serverVersion $currentVersion
+                            Start-Sleep -Seconds 1
+                            Remove-Item -Path "C:\chef\$automateCertName" -Force -Confirm:$false
+                            if ($compare) {
+                                $result = $false
+                            }
+                        }
+                        $clientRB = Get-Content C:\chef\client.rb -ErrorAction SilentlyContinue | Out-String
+                        $autoUrl = "data_collector.server_url`t'$automateUrl'"
+                        $autoToken = "data_collector.token`t'$automateToken'"
+                        if (($clientRB -notlike "*$autoUrl*") -or ($clientRB -notlike "*$autoToken*")) {
+                            $result = $false
+                        }
+                        return $result
+                    }
+                    $automateParams = @{
+                        ComputerName = $ip
+                        Credential = $Options.GuestCredentials
+                        ScriptBlock = $automateCmd
+                        ArgumentList = $chefOptions
+                    }
+                    if ($chefOptions.automateUrl) {
+                        $testAutomate = Invoke-Command @automateParams
+                        if (!($testAutomate)) {
+                            $chefNodeResult = $false
+                            Write-Verbose -Message 'Chef automate settings: MISMATCH'
+                        } else {
+                            Write-Verbose -Message 'Chef automate settings: MATCH'
+                        }
+                    }
                 } else {
                     $chefNodeResult = $false
                     Write-Verbose -Message 'Chef client: installed but node could not be found on Chef server'
