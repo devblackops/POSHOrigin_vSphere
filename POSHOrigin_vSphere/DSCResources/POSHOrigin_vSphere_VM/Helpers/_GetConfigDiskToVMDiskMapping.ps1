@@ -25,6 +25,7 @@ function _GeConfigDiskToVMDiskMapping {
                     DiskSizeGB = $diskDevice.CapacityInKB / 1024 / 1024
                     SCSIController = $scsiController.BusNumber
                     SCSITarget = $diskDevice.UnitNumber
+                    SerialNumber = $diskDevice.backing.uuid.replace('-','')
                     VolumeName = $null
                     VolumeLabel = $null
                     BlockSize = $null
