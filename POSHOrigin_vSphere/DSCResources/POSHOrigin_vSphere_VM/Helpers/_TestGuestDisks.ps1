@@ -43,7 +43,7 @@ function _TestGuestDisks {
                     foreach($config in $desiredDiskConfigMapping) {
 
                         # Do we have a matching guest disk
-                        $guestDisk = $guestDiskMapping | Where-Object {$_.SCSIBus -eq $config.SCSIController -and $_.SCSIUnit -eq $config.SCSITarget} | Select-Object -First 1
+                        $guestDisk = $guestDiskMapping | Where-Object {$_.SerialNumber -eq $config.SerialNumber} | Select-Object -First 1
 
                         if ($guestDisk) {
 
@@ -88,15 +88,15 @@ function _TestGuestDisks {
                                         $pass = $false
                                     }
                                 } else {
-                                    Write-Verbose -Message "Could not find partition for disk [$($config.SCSIController):$($config.SCSITarget)]"
+                                    Write-Verbose -Message "Could not find partition for disk with SN [$($config.SerialNumber)]"
                                     $pass = $false
                                 }
                             } else {
-                                Write-Verbose -Message "Could not find matching formated disk with SCSI ID [$($guestDisk.SCSIId)]"
+                                Write-Verbose -Message "Could not find matching formated disk with SN [$($guestDisk.SerialNumber)]"
                                 $pass = $false
                             }
                         } else {
-                            Write-Verbose -Message "Could not find disk [$($config.SCSIController):$($config.SCSITarget)]"
+                            Write-Verbose -Message "Could not find disk with SN [$($config.SerialNumber)]"
                             $pass = $false
                         }
                     }
@@ -122,7 +122,7 @@ function _TestGuestDisks {
                     foreach($config in $desiredDiskConfigMapping) {
 
                         # Do we have a matching guest disk
-                        $guestDisk = $guestDiskMapping | Where-Object {$_.SCSIBus -eq $config.SCSIController -and $_.SCSIUnit -eq $config.SCSITarget} | Select-Object -First 1
+                        $guestDisk = $guestDiskMapping | Where-Object {$_.SerialNumber -eq $config.SerialNumber} | Select-Object -First 1
 
                         if ($guestDisk) {
 
@@ -139,21 +139,35 @@ function _TestGuestDisks {
                                         $tempString = '  Disk ' + $($args[0]).ToString()
                                         $results = "list disk" | diskpart | ? {$_.startswith($tempString)}
                                         $results |% { 
-                                            if ($_ -match 'Disk\s+(\d+)\s+\w+\s+(\d+)\s+\w+\s+(\d+)') {
+                                            if ($_ -match 'Disk\s+(\d+)\s+\w+\s+(\d+)\s+\w+\s+(\d+)\s+(\w+)') {
                                                 Add-Member -InputObject $diskSize -MemberType Noteproperty -Name ExtraSpace -Value $($matches[3])
                                                 Add-Member -InputObject $diskSize -MemberType NoteProperty -Name DiskSize -Value $($matches[2])
                                                 $command = "select disk $($matches[1])`r`nlist part"
-                                                $results2 = $command |diskpart |where {$_ -match 'Partition\s+(\d+)\s+\w+\s+(\d+)'}
-                                                Add-Member -InputObject $diskSize -Membertype Noteproperty -Name PartSize -Value $($matches[2])
+                                                $x = $command |diskpart | where {($_ -notlike '*Reserved*') -and ($_ -notlike '*Unknown*') -and ($_ -match 'Partition\s\d')}
+                                                if ($x.count -gt 1) {
+                                                    $pass = $false
+                                                    $diskError = "Not able to configure$tempString because it has more than 1 primary partition"
+                                                    Write-Error $diskError
+                                                    throw
+                                                }
+                                                $results2 = $x | where {$_ -match 'Partition\s+(\d+)\s+\w+\s+(\d+)\s+\w+\s+(.*)'}
+                                                Add-Member -InputObject $diskSize -Membertype Noteproperty -Name PartNum -Value $($matches[1]).ToInt32($null)
+                                                Add-Member -InputObject $diskSize -Membertype Noteproperty -Name PartSize -Value $($matches[2]).ToDecimal($null)
+                                                #Lots of type casting magic to get the correct offset size in GB based on given type(KB, MB, or GB)
+                                                $offSet = $matches[3].replace(' ', '')
+                                                $sizeInBytes = [scriptblock]::Create($offSet).Invoke()
+                                                $sizeInGB = $sizeInBytes.ToInt32($null) / 1GB      
+                                                Add-Member -InputObject $diskSize -Membertype NoteProperty -Name Offset -Value $sizeInGB.ToDecimal($null)
                                             }
                                         }
                                         $diskSize
                                     }
                                 }
                                 $diskInfo = Invoke-Command @gs
-
-                                if (($diskInfo.ExtraSpace -gt 0) -and ($diskInfo.DiskSize -ne $config.DiskSizeGB)) {
-                                    Write-Verbose -Message "Disk [$($guestdisk.WindowsDisk)] does not match configuration [$($diskInfo.DiskSize) GB <> $($config.DiskSizeGB) GB]"
+                                Write-Debug $diskInfo
+                                $actualSize = [math]::ceiling($diskInfo.PartSize + $diskInfo.Offset)
+                                if ($actualSize -ne $config.DiskSizeGB) {
+                                    Write-Verbose -Message "Disk [$($guestdisk.WindowsDisk)] does not match configuration [$($actualSize) GB <> $($config.DiskSizeGB) GB]"
                                     $pass = $false
                                 }
 
@@ -169,11 +183,11 @@ function _TestGuestDisks {
                                     $pass = $false
                                 }                               
                             } else {
-                                Write-Verbose -Message "Could not find matching formated disk with SCSI ID [$($guestDisk.SCSIId)]"
+                                Write-Verbose -Message "Could not find matching formated disk with SN [$($guestDisk.SerialNumber)]"
                                 $pass = $false
                             }
                         } else {
-                            Write-Verbose -Message "Could not find disk [$($config.SCSIController):$($config.SCSITarget)]"
+                            Write-Verbose -Message "Could not find disk [$($config.SerialNumber)]"
                             $pass = $false
                         }
                     }
@@ -189,7 +203,7 @@ function _TestGuestDisks {
         } catch {
             Write-Error -Message 'There was a problem testing the guest disks'
             Write-Error -Message "$($_.InvocationInfo.ScriptName)($($_.InvocationInfo.ScriptLineNumber)): $($_.InvocationInfo.Line)"
-            write-Error -Exception $_
+            write-Error -ErrorRecord $_
         } finally {
             Remove-CimSession -CimSession $cim -ErrorAction SilentlyContinue
             Remove-PSSession -Session $session -ErrorAction SilentlyContinue
