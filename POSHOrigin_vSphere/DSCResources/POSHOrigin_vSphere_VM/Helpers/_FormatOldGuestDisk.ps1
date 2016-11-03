@@ -114,8 +114,8 @@ function _FormatOldGuestDisk {
                     $x = "Select Disk $($diskID)", "convert $($PartStyle)" | diskpart | Out-Null
 
                     # Create partition and format volume
-                    Write-Verbose -Message "Creating partition [$($VolName) on disk [$($diskID)]"
-                    $x = "Select Disk $($diskID)", "create partition primary", "assign letter=$($VolName)", "format FS=NTFS label=$($VolLabel) Unit=$($AlloSize)" | diskpart | Out-Null
+                    Write-Verbose -Message "Creating partition [$($VolName)] on disk [$($diskID)]"
+                    $x = "Select Disk $($diskID)", "create partition primary", "assign letter=$($VolName)", "format FS=NTFS quick label=$($VolLabel) Unit=$($AlloSize)" | diskpart | Out-Null
                 }
             }
             Invoke-Command @formatParams

@@ -35,6 +35,12 @@ process {
                         $cert = $provOptions.cert
                         $certName = $cert.split('/') | Select-Object -Last 1
                         $runList = $provOptions.runList
+                        $automateUrl = $provOptions.automateUrl
+                        $automateToken = $provOptions.automateToken
+                        $automateCert = $provOptions.automateCert
+                        if ($automateCert) {
+                            $automateCertName = $automateCert.split('/') | Select-Object -Last 1
+                        }
 
                         # Ensure Chef node name is always lowercase
                         $fqdnlower = $provOptions.nodeName.ToLower()
@@ -44,6 +50,9 @@ process {
                         Invoke-WebRequest -Uri $source -OutFile "c:\windows\temp\ChefClient\$sourceName"
                         Invoke-WebRequest -Uri $validatorKey -OutFile "c:\windows\temp\ChefClient\validator.pem"
                         Invoke-WebRequest -Uri $cert -OutFile "c:\windows\temp\ChefClient\$certName"
+                        if ($automateCert) {
+                            Invoke-WebRequest -Uri $automateCert -OutFile "C:\Windows\Temp\ChefClient\$automateCertName"
+                        }
 
                         # Install Chef MSI
                         $params = @{
@@ -73,7 +82,17 @@ validation_key           "c:\\chef\\validator.pem"
 chef_server_url          "$url"
 cookbook_path            ["C:\\chef_cookbooks"]
 "@
-
+                        if ($automateUrl) {
+                        $clientRB = @"
+chef_server_url             "$url"
+validation_client_name      "$validatorClientName"
+validation_key              "c:\\chef\\validator.pem"
+client_key                  "c:\\chef\\client.pem"
+node_name                   '$fqdnlower'
+data_collector.server_url   "$automateUrl"
+data_collector.token        "$automateToken"
+"@
+                        } else {
                         $clientRB = @"
 chef_server_url         "$url"
 validation_client_name  "$validatorClientName"
@@ -81,6 +100,7 @@ validation_key          "c:\\chef\\validator.pem"
 client_key              "c:\\chef\\client.pem"
 node_name               '$fqdnlower'
 "@
+                }
                         New-Item -Path "$HOME\.chef" -ItemType Directory -ErrorAction SilentlyContinue -Force
                         $knifeRB | Out-File -FilePath "$HOME\.chef\knife.rb" -Encoding ascii -Force
                         $clientRB | Out-File -FilePath 'c:\chef\client.rb' -Encoding ascii -Force
@@ -91,6 +111,9 @@ node_name               '$fqdnlower'
                         Copy-Item -Path "c:\windows\temp\ChefClient\$certName" -Destination 'c:\chef\trusted_certs' -Force
                         Copy-Item -Path "c:\windows\temp\ChefClient\$certName" -Destination "$HOME\.chef\trusted_certs" -Force
                         Copy-Item -Path "c:\windows\temp\ChefClient\validator.pem" -Destination 'c:\chef' -Force
+                        if ($automateCert) {
+                            Copy-Item -Path "c:\windows\temp\ChefClient\$automateCertName" -Destination 'c:\chef\trusted_certs' -Force
+                        }
 
                         # Start Chef as service
                         Start-Process -FilePath 'chef-service-manager' -ArgumentList '-a install' -NoNewWindow -Wait
@@ -122,6 +145,67 @@ node_name               '$fqdnlower'
 
             # Chef is already installed or was just installed
             if ($chefSvc -or $chefInstallResult) {
+            
+                # Check automate settings if any, and update if needed
+                $automateCmd = {
+                    $VerbosePreference = $Using:VerbosePreference
+                    $chefOptions = $args[0]
+                    $automateUrl = $chefOptions.automateUrl
+                    $automateToken = $chefOptions.automateToken
+                    $automateCert = $chefOptions.automateCert
+                    $automateCertName = $automateCert.split('/') | Select-Object -Last 1
+                    $testExists = Test-Path "C:\chef\trusted_certs\$automateCertName"
+                    if (!($testExists)) {
+                        Invoke-WebRequest -Uri "$automateCert" -OutFile "C:\chef\trusted_certs\$automateCertName" | Out-Null
+                    } else {
+                        Invoke-WebRequest -Uri "$automateCert" -OutFile "C:\chef\$automateCertName" | Out-Null
+                        $serverVersion = Get-Content "C:\chef\trusted_certs\$automateCertName"
+                        $currentVersion = Get-Content "C:\chef\$automateCertName"
+                        $compare = Compare-Object $serverVersion $currentVersion
+                        Start-Sleep -Seconds 1
+                        if ($compare) {
+                            Write-Verbose -Message "Updated chef automate cert"
+                            Move-Item -Path "C:\chef\$automateCertName" -Destination "C:\chef\trusted_certs\$automateCertName" -Force -Confirm:$false
+                        } else {
+                            Remove-Item -Path "C:\chef\$automateCertName" -Force -Confirm:$false
+                        }
+                    }
+                    $clientRB = Get-Content C:\chef\client.rb -ErrorAction SilentlyContinue | Out-String
+                    $autoUrl = "data_collector.server_url`t'$automateUrl'"
+                    $autoToken = "data_collector.token`t'$automateToken'"
+                    if ($clientRB -notlike "*$autoUrl*") {
+                        if ($clientRB -like "*data_collector.server_url*") {
+                            $clientRB = Get-Content C:\chef\client.rb -ErrorAction SilentlyContinue
+                            $clientRB | foreach-Object {$_ -replace "^.*data_collector.server_url.*$","data_collector.server_url`t'$automateUrl'"} | set-content C:\chef\client.rb
+                            Write-Verbose 'Updated chef client.rb for automate url'
+                        } else {
+                            Add-Content C:\chef\client.rb -Value "`r`ndata_collector.server_url`t'$automateUrl'"
+                            Write-Verbose 'Created entry in client.rb for automate url'
+                        }
+                    }
+
+                    $clientRB = Get-Content C:\chef\client.rb -ErrorAction SilentlyContinue | Out-String
+                    if ($clientRB -notlike "*$autoToken*") {
+                        if ($clientRB -like "*data_collector.token*") {
+                            $clientRB = Get-Content C:\chef\client.rb -ErrorAction SilentlyContinue
+                            $clientRB | foreach-Object {$_ -replace "^.*data_collector.token.*$","data_collector.token`t'$automateToken'"} | set-content C:\chef\client.rb
+                            Write-Verbose 'Updated chef client.rb for automate token'
+                        } else {
+                            Add-Content C:\chef\client.rb -Value "`r`ndata_collector.token`t'$automateToken'"
+                            Write-Verbose 'Created entry in client.rb for automate token'
+                        }
+                    }
+                }
+                $automateParams = @{
+                    ComputerName = $ip
+                    Credential = $Options.GuestCredentials
+                    ScriptBlock = $automateCmd
+                    ArgumentList = $chefOptions
+                }
+
+                if ($chefOptions.automateUrl) {
+                    Invoke-Command @automateParams
+                }
 
                 # Get the node from Chef
                 $getParams = @{

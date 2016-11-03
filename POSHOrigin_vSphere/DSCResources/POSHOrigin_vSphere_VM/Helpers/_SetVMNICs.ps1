@@ -31,7 +31,7 @@ function _SetVMNICs {
     foreach ($netConfig in $netConfigs) {
         $vmNIC = $vmNICs[$num-1]
         try {
-            if ($vmNIC -ne $null) {
+            if ($null -ne $vmNIC) {
 
                 Write-Debug "Setting NIC $num to port group [$($netConfig.PortGroup)]"
                 

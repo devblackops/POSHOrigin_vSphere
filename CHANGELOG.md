@@ -1,3 +1,11 @@
+## 1.4.0 (2016-11-03)
+    * Features
+        * Add the ability to define Chef Automate URL, token, and cert in the Chef provisioner options.
+
+    * Improvements
+        * Change how disk mapping is done between vSphere and Windows.
+        * Change to quick disk formating on Windows 2008.
+
 ## 1.3.0
     * Add support for managing tags on VMs.
     * Add support for installing/updating VM tools if out of date or not installed.

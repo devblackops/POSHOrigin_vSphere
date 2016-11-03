@@ -44,7 +44,8 @@ function _GetGuestDiskToVMDiskMapping {
                 Add-Member -InputObject $mapping -MemberType NoteProperty -Name DiskFile -Value $virtualDiskDevice.Backing.FileName
                 Add-Member -InputObject $mapping -MemberType NoteProperty -Name DiskSize -Value (($virtualDiskDevice.CapacityInKB * 1KB / 1GB)).ToInt32($Null)
 
-                $match = $wmiDisks | Where-Object {([int]$_.SCSIPort - 2) -eq $virtualSCSIController.BusNumber -and [int]$_.SCSITargetID -eq $virtualDiskDevice.UnitNumber}
+                #$match = $wmiDisks | Where-Object {([int]$_.SCSIPort - 2) -eq $virtualSCSIController.BusNumber -and [int]$_.SCSITargetID -eq $virtualDiskDevice.UnitNumber}
+                $match = $wmiDisks | where {$_.serialnumber -eq $virtualDiskDevice.backing.uuid.Replace('-','')}
                 if ($match) {
                     Add-Member -InputObject $mapping -MemberType NoteProperty -Name WindowsDisk -Value $match.Index
                     Add-Member -InputObject $mapping -MemberType NoteProperty -Name SerialNumber -Value $match.SerialNumber
@@ -67,7 +68,7 @@ function _GetGuestDiskToVMDiskMapping {
                     }
                     $diskInfo += $mapping   
                 } else {
-                    Write-Verbose -Message "No matching Windows disk found for SCSI ID [$($mapping.SCSIId)]"
+                    Write-Verbose -Message "No matching Windows disk found for Serial Number [$($virtualDiskDevice.backing.uuid.Replace('-',''))]"
                 }        
             }
         }

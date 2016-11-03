@@ -191,16 +191,19 @@ Provisioners = @(
 
 Bootstraps the Chef client on the VM after provisioning. Also registers the Chef client with the specific organization and applies the specified run list, attributes, and environment.
 
-| Name         | Type        | Required | Description
-| :------------|:------------|:---------|:-----------|
-| NodeName     | string      | True     | Name to assign the node in Chef
-| Url          | string      | True     | URL for the Chef organization
-| Source       | string      | True     | URL to the Chef client MSI file to install
-| ValidatorKey | string      | True     | URL to the Chef validator .pem file that has rights to joins nodes to the organization
-| Cert         | string      | True     | URL to the certificate to add to Chef's 'trusted_certs' folder
-| RunList      | hashtable[] | False    | Set of recipes or roles to assign to the node
-| Environment  | string      | False    | Chef environment to assign the node to
-| Attributes   | hashtable   | False    | Hashtable of attributes to assign to the node
+| Name          | Type        | Required | Description
+| :-------------|:------------|:---------|:-----------|
+| NodeName      | string      | True     | Name to assign the node in Chef
+| Url           | string      | True     | URL for the Chef organization
+| Source        | string      | True     | URL to the Chef client MSI file to install
+| ValidatorKey  | string      | True     | URL to the Chef validator .pem file that has rights to joins nodes to the organization
+| Cert          | string      | True     | URL to the certificate to add to Chef's 'trusted_certs' folder
+| RunList       | hashtable[] | False    | Set of recipes or roles to assign to the node
+| Environment   | string      | False    | Chef environment to assign the node to
+| Attributes    | hashtable   | False    | Hashtable of attributes to assign to the node
+| AutomateUrl   | string      | False    | URL for your Chef Automate server
+| AutomateToken | string      | False    | Token for authenticating with Chef Automate
+| AutomateCert  | string      | False    | URL to the Chef Automate cert to Chefs trusted certs folder
 
 ```powerShell
 Provisioners = @(
@@ -217,6 +220,9 @@ Provisioners = @(
              @{ recipe = 'myapp::default' }
           )
           environment = 'prod'
+          automateUrl = 'https://chefautomatesvr.mydomain.com/data-collector/v0/'
+          automateToken = '<CHEF_AUTOMATE_TOKEN>'
+          automateCert = '<URL to issuing CA .crt file for chef automate>'
           attributes = @{
              myapp = @{
                 prop1 = 42

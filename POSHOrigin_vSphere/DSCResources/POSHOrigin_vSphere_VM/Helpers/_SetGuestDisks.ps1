@@ -62,7 +62,7 @@ function _SetGuestDisks{
 
                     # Do we have a matching guest disk
                     $guestDisk = $guestDiskMapping |
-                        Where-Object {$_.SCSIBus -eq $config.SCSIController -and $_.SCSIUnit -eq $config.SCSITarget} | 
+                        Where-Object {$_.SerialNumber -eq $config.SerialNumber} | 
                         Select-Object -First 1
 
                     if ($guestDisk) {
@@ -95,7 +95,7 @@ function _SetGuestDisks{
                             Write-Verbose -Message "Could not find guest disk [$($guestDisk.WindowsDisk)]"
                         }
                     } else {
-                        Write-Verbose -Message "Could not find disk $($config.SCSIController):$($config.SCSITarget)"
+                        Write-Verbose -Message "Could not find disk with SN $($config.SerialNumber)"
                     }
                 }
 
@@ -125,7 +125,7 @@ function _SetGuestDisks{
 
                     # Do we have a matching guest disk from our mapping?
                     $guestDisk = $guestDiskMapping |
-                        Where-Object {$_.SCSIBus -eq $config.SCSIController -and $_.SCSIUnit -eq $config.SCSITarget} |
+                        Where-Object {$_.SerialNumber -eq $config.SerialNumber} |
                         Select-Object -First 1
 
                     if ($guestDisk) {
@@ -144,7 +144,7 @@ function _SetGuestDisks{
                                     ScriptBlock = {
                                         $args[0] |
                                             Get-Partition |
-                                            Where-Object {$_.Type -ne 'Reserved' -and $_.IsSystem -eq $false} |
+                                            Where-Object {$_.Type -ne 'Reserved' -and $_.IsSystem -eq $false -and $_.Type -ne 'Unknown'} |
                                             Select-Object -First 1
                                         }
                                     ArgumentList = $disk
@@ -217,29 +217,41 @@ function _SetGuestDisks{
                                         $diskInfo = New-Object psobject
                                         $diskID = '  Disk ' + $($args[0]).ToString()
                                         $results = "list disk" | diskpart | ? {$_.startswith($diskID)}
-
                                         $results |% { 
-                                            if ($_ -match 'Disk\s+(\d+)\s+\w+\s+\d+\s+\w+\s+(\d+)') {
-                                                Add-Member -InputObject $diskInfo -MemberType Noteproperty -Name ExtraSpace -Value $($matches[2])
+                                            if ($_ -match 'Disk\s+(\d+)\s+\w+\s+(\d+)\s+\w+\s+(\d+)\s+(\w+)') {
+                                                Add-Member -InputObject $diskInfo -MemberType Noteproperty -Name ExtraSpace -Value $($matches[3])
+                                                Add-Member -InputObject $diskInfo -MemberType NoteProperty -Name DiskSize -Value $($matches[2])
                                                 $command = "select disk $($matches[1])`r`nlist part"
-                                                $x = $command |diskpart |where {$_ -match 'Partition\s\d'}
-                                                Add-Member -InputObject $diskInfo -Membertype Noteproperty -Name PartitionCount -Value $($matches.Values.Count)
+                                                $x = $command |diskpart | where {($_ -notlike '*Reserved*') -and ($_ -notlike '*Unknown*') -and ($_ -match 'Partition\s\d')}
+                                                if ($x.count -gt 1) {
+                                                    throw "Not able to configure disk $($args[0]) because it has more than 1 primary partition"
+                                                }
+                                                $results2 = $command |diskpart | where {$_ -match 'Partition\s+(\d+)\s+\w+\s+(\d+)\s+\w+\s+(.*)'}
+                                                Add-Member -InputObject $diskInfo -Membertype Noteproperty -Name PartNum -Value $($matches[1]).ToInt32($null)
+                                                Add-Member -InputObject $diskInfo -Membertype Noteproperty -Name PartSize -Value $($matches[2]).ToDecimal($null)
+                                                $offSet = $matches[3].replace(' ', '')
+                                                $sizeInBytes = [scriptblock]::Create($offSet).Invoke()
+                                                $sizeInGB = $sizeInBytes.ToInt32($null) / 1GB      
+                                                Add-Member -InputObject $diskInfo -Membertype NoteProperty -Name Offset -Value $sizeInGB.ToDecimal($null)
                                             }
                                         }
                                         $diskInfo
                                     }
                                 }
-                                $diskInfo = Invoke-Command @gs
 
-                                if ($diskInfo.PartitionCount -ne 1) {
-                                    throw
-                                } elseif ($diskInfo.ExtraSpace -gt 0) {
+                                $diskInfo = Invoke-Command @gs
+                                Write-Debug $diskInfo
+
+                                $actualSize = [math]::ceiling($diskInfo.PartSize + $diskInfo.Offset)
+                                if ($actualSize -lt $config.DiskSizeGB) {
+                                    Write-Verbose "Extending partition for disk $($disk.WindowsDisk)"
                                     $ed = @{
                                         Session = $session
-                                        ArgumentList = $disk.WindowsDisk
+                                        ArgumentList = $disk.WindowsDisk, $diskInfo.PartNum
                                         ScriptBlock = {
                                             $diskID = $args[0].ToString()
-                                            $x = "Select Disk $($diskID)", "Select Partition 1", "extend noerr" | diskpart | out-null
+                                            $partNum = $args[1].ToString()
+                                            $x = "Select Disk $($diskID)", "Select Partition $($partNum)", "extend noerr" | diskpart | out-null
                                         }
                                     }
                                     $results = Invoke-Command @ed
@@ -250,11 +262,12 @@ function _SetGuestDisks{
                                     Write-Verbose -Message "Setting drive letter to [$($config.VolumeName)]"
                                     $sdl = @{
                                         Session = $session
-                                        ArgumentList = $disk
+                                        ArgumentList = $disk, $diskInfo.PartNum
                                         ScriptBlock = {
                                             $DiskID = $args[0].WindowsDisk.ToString()
                                             $VolName = $args[0].VolumeName.ToString()
-                                            $x = "Select Disk $($DiskID)", "Select Partition 1", "assign letter=$($VolName)" | diskpart | Out-Null
+                                            $PartNum = $args[1].ToString()
+                                            $x = "Select Disk $($DiskID)", "Select Partition $($PartNum)", "assign letter=$($VolName)" | diskpart | Out-Null
                                         }
                                     }
                                 }
