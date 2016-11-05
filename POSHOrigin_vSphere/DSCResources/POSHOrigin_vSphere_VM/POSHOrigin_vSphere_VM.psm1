@@ -590,12 +590,7 @@ function Test-TargetResource {
     
     # NICs
     # TODO
-    
-    # Power state
-    $powerResult = _TestVMPowerState -vm $vm -PowerOnAfterCreation $PowerOnAfterCreation
-    $match = if ( $powerResult) { 'MATCH' } else { 'MISMATCH' }
-    Write-Verbose -Message "Power state: $match"
-
+       
     # Guest disks
     $guestDiskResult = $true
     if ($VM.PowerState -eq 'PoweredOn') {
@@ -622,8 +617,6 @@ function Test-TargetResource {
     $powerResult = _TestVMPowerState -vm $vm -PowerOnAfterCreation $PowerOnAfterCreation
     $match = if ( $powerResult) { 'MATCH' } else { 'MISMATCH' }
     Write-Verbose -Message "Power state: $match"
-
-    #endregion
     
     # VM Tools
     if ($UpdateTools) {
@@ -632,7 +625,9 @@ function Test-TargetResource {
         Write-Verbose -Message "VM Tools: $match"    
     } else {
         $toolsResult = $true
-    }    
+    }
+
+    #endregion    
 
     # Test provisioners
     $provisionerResults = @()
