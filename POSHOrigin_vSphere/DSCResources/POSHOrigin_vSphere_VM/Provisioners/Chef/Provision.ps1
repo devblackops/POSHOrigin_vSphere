@@ -268,10 +268,11 @@ node_name               '$fqdnlower'
                     # Chef node attributes usually have an empty tags attributes by default
                     # so add that to the reference if isn't doesn't already exist
                     if (-Not $ChefOptions.attributes) {
-                        $chefOptions | Add-Member -MemberType NoteProperty -Name attributes -Value @{tags = @{}}
+                        $chefOptions | Add-Member -MemberType NoteProperty -Name attributes -Value @{}
                     } else {
                         if (-Not $ChefOptions.attributes.tags) {
-                            $chefOptions.attributes | Add-Member -MemberType NoteProperty -Name tags -Value @{}
+                            #$chefOptions.attributes | Add-Member -MemberType NoteProperty -Name tags -Value @{}
+                            $chefOptions.attributes.PSObject.Properties.Remove('tags')
                         }
                     }
                     $refJson = $chefOptions.attributes | ConvertTo-Json
