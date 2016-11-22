@@ -104,7 +104,7 @@ switch ($type) {
                     [psobject]$ResourceOptions
                 )
 
-                Import-DscResource -Name VM -ModuleName POSHOrigin_vSphere
+                Import-DscResource -Name VM -ModuleName POSHOrigin_vSphere -ModuleVersion 1.4.1
 
                 # Credentials may be specified in line. Test for that
                 if ($ResourceOptions.Options.vCenterCredentials -is [pscredential]) {

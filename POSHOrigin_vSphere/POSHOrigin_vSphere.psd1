@@ -1,6 +1,6 @@
 @{
 RootModule = 'POSHOrigin_vSphere.psm1'
-ModuleVersion = '1.4.0'
+ModuleVersion = '1.4.1'
 GUID = 'af4099cf-30a1-44eb-8c74-a10948245227'
 Author = 'Brandon Olin'
 Copyright = '(c) 2016 Brandon Olin. All rights reserved.'
