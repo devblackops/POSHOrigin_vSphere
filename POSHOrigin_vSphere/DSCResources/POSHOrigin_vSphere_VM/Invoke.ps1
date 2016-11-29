@@ -110,7 +110,7 @@ switch ($type) {
                     [psobject]$ResourceOptions
                 )
 
-                Import-DscResource -Name VM -ModuleName POSHOrigin_vSphere -ModuleVersion 1.4.1
+                Import-DscResource -Name VM -ModuleName POSHOrigin_vSphere -ModuleVersion 1.4.2
 
                 # Credentials may be specified in line. Test for that
                 if ($ResourceOptions.Options.vCenterCredentials -is [pscredential]) {
@@ -143,7 +143,7 @@ switch ($type) {
                     # If the guest credential doesn't have a domain or computer name
                     # as part of the username, make sure to add it
                     if ($tCred.UserName -notcontains '\') {
-                        $userName = "$($ResourceOptions.options.Name)`\$($tCred.UserName)"
+                        $userName = "$($ResourceOptions.Name)`\$($tCred.UserName)"
                         $tCred = New-Object System.Management.Automation.PSCredential -ArgumentList ($userName, $tCred.Password)
                     }
                     $guestCred = $tCred
