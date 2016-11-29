@@ -1,3 +1,7 @@
+## 1.4.2 (2016-11-29)
+    * Bug fixes
+        * Add computername to guest credential if not present.
+
 ## 1.4.1 (2016-11-21)
     * Bug fixes
         * Fix bug when multple versions of the module are installed.

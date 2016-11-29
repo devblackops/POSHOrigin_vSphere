@@ -59,7 +59,13 @@ switch ($type) {
                 $hash.vCenterCredentials = $Options.Options.vCenterCredentials
             }
             if ($Options.Options.GuestCredentials -is [pscredential]) {
-                $hash.GuestCredentials = $Options.Options.GuestCredentials
+                if ($Options.Options.GuestCredentials.UserName -notcontains '\') {
+                    $userName = "$($Options.Name)`\$($Options.Options.GuestCredentials.UserName)"
+                    $tCred = New-Object System.Management.Automation.PSCredential -ArgumentList ($userName, $Options.Options.GuestCredentials.Password)
+                    $hash.GuestCredentials = $tCred
+                } else {
+                    $hash.GuestCredentials = $Options.Options.GuestCredentials
+                }                
             }
             if ($Options.Options.DomainJoinCredentials -is [pscredential]) {
                 $hash.DomainJoinCredentials = $Options.Options.DomainJoinCredentials
@@ -130,10 +136,17 @@ switch ($type) {
                 }
                 if ($ResourceOptions.options.secrets.guest -or $ResourceOptions.options.secrets.GuestCredentials ) {
                     if ($ResourceOptions.options.secrets.guest) {
-                        $guestCred = $ResourceOptions.options.secrets.guest.credential
+                        $tCred = $ResourceOptions.options.secrets.guest.credential
                     } else {
-                        $guestCred = $ResourceOptions.options.secrets.guestCredentials.credential
+                        $tCred = $ResourceOptions.options.secrets.guestCredentials.credential
                     }
+                    # If the guest credential doesn't have a domain or computer name
+                    # as part of the username, make sure to add it
+                    if ($tCred.UserName -notcontains '\') {
+                        $userName = "$($ResourceOptions.options.Name)`\$($tCred.UserName)"
+                        $tCred = New-Object System.Management.Automation.PSCredential -ArgumentList ($userName, $tCred.Password)
+                    }
+                    $guestCred = $tCred
                 }
                 if ($ResourceOptions.options.secrets.ipam -or $ResourceOptions.options.secrets.IPAMCredentials ) {
                     if ($ResourceOptions.options.secrets.ipam) {
