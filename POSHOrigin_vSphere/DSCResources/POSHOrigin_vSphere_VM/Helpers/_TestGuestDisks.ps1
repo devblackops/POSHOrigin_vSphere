@@ -31,7 +31,7 @@ function _TestGuestDisks {
 
             # Test Server 2012 or higher #
             if ($os -ge 62) {
-                Write-Verbose -message 'Running 2012 disk tests'
+                Write-Debug -Message 'Running 2012 disk tests'
                 if ($ip) {
 
                     # Get mapped disks between the guest and VMware
@@ -105,7 +105,7 @@ function _TestGuestDisks {
                     $pass = $true
                 }
             } else {
-                Write-verbose -Message 'Running 2008r2 disk tests'
+                Write-Debug -Message 'Running 2008r2 disk tests'
                 # Test Server 2008R2 or lower #
                 if ($ip) {
                     $opt = New-CimSessionOption -Protocol DCOM
