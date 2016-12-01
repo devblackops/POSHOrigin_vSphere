@@ -16,9 +16,9 @@ function _ConnectTovCenter {
         $mods | foreach {
             Import-Module -Name $_ -ErrorAction Stop -Verbose:$false -Debug:$false
         }        
-     } else {
+    } else {
         throw 'VMware PowerCLI modules do not appear to be installed on this system.'
-     }
+    }
 
     try {
         Write-Debug -Message "Trying to connect to $vCenter"
