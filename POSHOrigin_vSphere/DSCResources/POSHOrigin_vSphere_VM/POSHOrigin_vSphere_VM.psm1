@@ -51,6 +51,9 @@ function Get-TargetResource {
         
         [System.String]
         $Tags,
+
+        [System.String]
+        $Description,
         
         [System.Boolean]
         $UpdateTools = $false,
@@ -114,6 +117,7 @@ function Get-TargetResource {
         ResourcePool = $ResourcePool
         VMHost = $VMHost
         Tags = $Tags
+        Description = $Description
         UpdateTools = $UpdateTools
         vApp = $vApp
         Provisioners = $Provisioners
@@ -166,6 +170,9 @@ function Set-TargetResource {
         
         [System.String]
         $Tags,
+
+        [System.String]
+        $Description,
         
         [System.Boolean]
         $UpdateTools = $false,
@@ -283,6 +290,11 @@ function Set-TargetResource {
             }
             
             if ($vm) {
+                # Set Description
+                if (-not (_TestVMDescription -vm $VM -Description $Description)) {
+                    _SetVMDescription -VM $vm -Description $Description
+                }
+
                 # Set RAM
                 if (-not (_TestVMRAM -vm $vm -RAM $vRAM)) {
                     _SetVMRAM -vm $vm -RAM $vRAM
@@ -486,6 +498,9 @@ function Test-TargetResource {
         
         [System.String]
         $Tags,
+
+        [System.String]
+        $Description,
         
         [System.Boolean]
         $UpdateTools = $false,
@@ -557,6 +572,11 @@ function Test-TargetResource {
     }
 
     #region Run through tests
+    # Description
+    $descriptionResult = _TestVMDescription -VM $vm -Description $Description
+    $match = if ($descriptionResult) { 'MATCH'} else { 'MISMATCH' }
+    Write-Verbose -Message "Description: $match"
+
     # RAM
     $ramResult = _TestVMRAM -VM $vm -RAM $vRAM
     $match = if ( $ramResult) { 'MATCH' } else { 'MISMATCH' }
@@ -649,7 +669,7 @@ function Test-TargetResource {
 
     _DisconnectFromvCenter -vCenter $vCenter
     
-    if (-not ($ramResult -and $cpuResult -and $vmDiskResult -and $guestDiskResult -and $powerResult -and $folderResult -and $tagResult -and $toolsResult)) {
+    if (-not ($descriptionResult -and $ramResult -and $cpuResult -and $vmDiskResult -and $guestDiskResult -and $powerResult -and $folderResult -and $tagResult -and $toolsResult)) {
         Write-Debug -Message "One or more tests failed"
         return $false
     }
