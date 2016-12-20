@@ -10,7 +10,6 @@ function _GetGuestVMIPAddress{
     # because the IP address will only get populated once VMware Tools is running
     $t = Get-VM -Id $VM.Id -Verbose:$false -Debug:$false
     $ips = $t.Guest.IPAddress | Where-Object { ($_ -notlike '169.*') -and ( $_ -notlike '*:*') }
-
     if ($ips) {
         $goodIp = $null
         foreach ($ip in $ips) {

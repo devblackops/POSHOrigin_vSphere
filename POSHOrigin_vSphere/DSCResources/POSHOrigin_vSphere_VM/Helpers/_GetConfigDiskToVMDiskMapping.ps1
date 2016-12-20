@@ -22,7 +22,7 @@ function _GeConfigDiskToVMDiskMapping {
 
                 $disk = [pscustomobject]@{
                     DiskName = $diskDevice.DeviceInfo.Label
-                    DiskSizeGB = $diskDevice.CapacityInKB / 1024 / 1024
+                    DiskSizeGB = [math]::ceiling($diskDevice.CapacityInKB / 1024 / 1024)
                     SCSIController = $scsiController.BusNumber
                     SCSITarget = $diskDevice.UnitNumber
                     SerialNumber = $diskDevice.backing.uuid.replace('-','')

@@ -48,8 +48,8 @@ function _TestVMDisks {
                 if ($disk.SCSI -and $null -ne $vmDisk) {
 
                     # The SCSI Id the VM disk 'should' be on
-                    $desiredSCSIControllerNumber = $disk.SCSI.Id.Split(':')[0]
-                    $desiredBusNumber = $disk.SCSI.Id.Split(':')[1]
+                    $desiredSCSIControllerNumber = $disk.SCSI.Split(':')[0]
+                    $desiredBusNumber = $disk.SCSI.Split(':')[1]
 
                     $actualSCSIController = $vmDisk | Get-SCSIController -Verbose:$false
                     $actualSCSIControllerNum = $actualSCSIController.Name.Split(' ')[2]

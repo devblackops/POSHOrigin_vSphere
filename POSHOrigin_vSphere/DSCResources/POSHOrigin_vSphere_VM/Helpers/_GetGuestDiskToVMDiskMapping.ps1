@@ -11,11 +11,14 @@ function _GetGuestDiskToVMDiskMapping {
         $cim,
 
         [Parameter(Mandatory)]
+        $session,
+        
+        [Parameter(Mandatory)]
         [pscredential]$Credential
     )
 
     try {
-        $os = _GetGuestOS -VM $VM -Credential $credential
+        $os = _GetGuestOS -VM $VM -session $session -Credential $credential
         $vmView = $VM | Get-View -Verbose:$false -Debug:$false
 
         # Get the ESX host which the VM is currently running on
@@ -45,9 +48,15 @@ function _GetGuestDiskToVMDiskMapping {
                 Add-Member -InputObject $mapping -MemberType NoteProperty -Name DiskSize -Value (($virtualDiskDevice.CapacityInKB * 1KB / 1GB)).ToInt32($Null)
 
                 #$match = $wmiDisks | Where-Object {([int]$_.SCSIPort - 2) -eq $virtualSCSIController.BusNumber -and [int]$_.SCSITargetID -eq $virtualDiskDevice.UnitNumber}
+                $hasSerial = $true
                 $match = $wmiDisks | where {$_.serialnumber -eq $virtualDiskDevice.backing.uuid.Replace('-','')}
+                if (!$match) {
+                    $hasSerial = $false
+                    $match = $wmiDisks | Where-Object {([int]$_.SCSIPort - 2) -eq $virtualSCSIController.BusNumber -and [int]$_.SCSITargetID -eq $virtualDiskDevice.UnitNumber}
+                }
                 if ($match) {
                     Add-Member -InputObject $mapping -MemberType NoteProperty -Name WindowsDisk -Value $match.Index
+                    Add-Member -InputObject $mapping -MemberType NoteProperty -Name HasSN -Value $hasSerial
                     Add-Member -InputObject $mapping -MemberType NoteProperty -Name SerialNumber -Value $match.SerialNumber
                     if ($os -lt 62) {
                         $partitions = Get-CimInstance -Query "ASSOCIATORS OF {Win32_DiskDrive.DeviceID=`"$($match.DeviceID.replace('\','\\'))`"} WHERE AssocClass = Win32_DiskDriveToDiskPartition" -CimSession $cim -verbose:$false | Select *
@@ -68,7 +77,7 @@ function _GetGuestDiskToVMDiskMapping {
                     }
                     $diskInfo += $mapping   
                 } else {
-                    Write-Verbose -Message "No matching Windows disk found for Serial Number [$($virtualDiskDevice.backing.uuid.Replace('-',''))]"
+                        Write-Verbose -Message "No matching Windows disk found for Serial Number [$($virtualDiskDevice.backing.uuid.Replace('-',''))] or SCSI ID [$($mapping.SCCIId)]"
                 }        
             }
         }

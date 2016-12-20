@@ -171,9 +171,9 @@ node_name               '$fqdnlower'
                         }
                     }
                     $clientRB = Get-Content C:\chef\client.rb -ErrorAction SilentlyContinue | Out-String
-                    $autoUrl = "data_collector.server_url`t'$automateUrl'"
-                    $autoToken = "data_collector.token`t'$automateToken'"
-                    if ($clientRB -notlike "*$autoUrl*") {
+                        $autoUrl = "(.*)data_collector.server_url\s+'$automateUrl(.*)'"
+                        $autoToken = "(.*)data_collector.token\s+'$automateToken(.*)'"
+                    if ($clientRB -notmatch $autoUrl) {
                         if ($clientRB -like "*data_collector.server_url*") {
                             $clientRB = Get-Content C:\chef\client.rb -ErrorAction SilentlyContinue
                             $clientRB | foreach-Object {$_ -replace "^.*data_collector.server_url.*$","data_collector.server_url`t'$automateUrl'"} | set-content C:\chef\client.rb
@@ -185,7 +185,7 @@ node_name               '$fqdnlower'
                     }
 
                     $clientRB = Get-Content C:\chef\client.rb -ErrorAction SilentlyContinue | Out-String
-                    if ($clientRB -notlike "*$autoToken*") {
+                    if ($clientRB -notmatch $autoToken) {
                         if ($clientRB -like "*data_collector.token*") {
                             $clientRB = Get-Content C:\chef\client.rb -ErrorAction SilentlyContinue
                             $clientRB | foreach-Object {$_ -replace "^.*data_collector.token.*$","data_collector.token`t'$automateToken'"} | set-content C:\chef\client.rb
@@ -268,10 +268,10 @@ node_name               '$fqdnlower'
                     # Chef node attributes usually have an empty tags attributes by default
                     # so add that to the reference if isn't doesn't already exist
                     if (-Not $ChefOptions.attributes) {
-                        $chefOptions | Add-Member -MemberType NoteProperty -Name attributes -Value @{tags = @{}}
+                        $chefOptions | Add-Member -MemberType NoteProperty -Name attributes -Value @{tags = @()}
                     } else {
                         if (-Not $ChefOptions.attributes.tags) {
-                            $chefOptions.attributes | Add-Member -MemberType NoteProperty -Name tags -Value @{}
+                            $chefOptions.attributes | Add-Member -MemberType NoteProperty -Name tags -Value @()
                         }
                     }
                     $refJson = $chefOptions.attributes | ConvertTo-Json

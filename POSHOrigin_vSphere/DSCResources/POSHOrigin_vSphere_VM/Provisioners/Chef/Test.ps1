@@ -139,9 +139,9 @@ process {
                             }
                         }
                         $clientRB = Get-Content C:\chef\client.rb -ErrorAction SilentlyContinue | Out-String
-                        $autoUrl = "data_collector.server_url`t'$automateUrl'"
-                        $autoToken = "data_collector.token`t'$automateToken'"
-                        if (($clientRB -notlike "*$autoUrl*") -or ($clientRB -notlike "*$autoToken*")) {
+                        $autoUrl = "(.*)data_collector.server_url\s+'$automateUrl(.*)'"
+                        $autoToken = "(.*)data_collector.token\s+'$automateToken(.*)'"
+                        if (($clientRB -notmatch $autoUrl) -or ($clientRB -notmatch $autoToken)) {
                             $result = $false
                         }
                         return $result

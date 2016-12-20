@@ -4,16 +4,16 @@ function _RefreshHostStorageCache {
         [Parameter(Mandatory)]
         [ValidateNotNull()]
         $vm,
-
+        
         [Parameter(Mandatory)]
         [pscredential]$Credential
     )
 
     try {
         $ip = _GetGuestVMIPAddress -VM $vm
-        $os = _GetGuestOS -VM $vm -Credential $credential
         if ($ip) {
             $session = New-PSSession -ComputerName $ip -Credential $credential -Verbose:$false
+            $os = _GetGuestOS -VM $vm -session $session -Credential $credential
 
             Write-Debug 'Refreshing disks on guest'
             if ($os -ge 63) {
