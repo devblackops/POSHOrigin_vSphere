@@ -124,7 +124,7 @@ The networks parameter specifies an array of VM network configurations for the V
 
 | Name           | Type     | Required | Description
 | :--------------|:---------|:---------|:-----------|
-| PortGroup      | string   | True     | Name of the virtual hard disk. (Hard disk 1, Hard disk 2, etc)
+| PortGroup      | string   | True     | Name of the port group.
 | IPAssignment   | string   | True     | IP assignment method. Valid values are **'Static'**, **'DHCP'**, and **'IPNextAvailable'**
 | Network        | string   | False    | InfoBlox network name to request an available IP from. **ONLY VALID WHEN 'IPAssignment' is set to 'IPAMNextAvailable'**
 | IPAddress      | string   | False    | IP address for NIC. **ONLY VALID WHEN 'IPAssignment' is set to 'Static'**
