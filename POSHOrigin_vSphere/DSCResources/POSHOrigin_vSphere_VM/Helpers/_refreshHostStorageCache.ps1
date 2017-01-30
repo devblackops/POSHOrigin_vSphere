@@ -1,33 +1,19 @@
 function _RefreshHostStorageCache {
     [cmdletbinding()]
     param(
-        [Parameter(Mandatory)]
-        [ValidateNotNull()]
-        $vm,
-        
-        [Parameter(Mandatory)]
-        [pscredential]$Credential
+        [parameter(Mandatory)]
+        [System.Management.Automation.Runspaces.PSSession]$PSSession
     )
 
     try {
-        $ip = _GetGuestVMIPAddress -VM $vm
-        if ($ip) {
-            $session = New-PSSession -ComputerName $ip -Credential $credential -Verbose:$false
-            $os = _GetGuestOS -VM $vm -session $session -Credential $credential
-
-            Write-Debug 'Refreshing disks on guest'
-            if ($os -ge 63) {
-                Invoke-Command -Session $session -ScriptBlock { Update-HostStorageCache } -Verbose:$false
-                Remove-PSSession -Session $session -ErrorAction SilentlyContinue
-            } else {
-                Invoke-Command -Session $session -ScriptBlock { $x = "rescan" | diskpart } -Verbose:$false
-                Remove-PSSession -session $session -ErrorAction SilentlyContinue
-            }
+        Write-Debug 'Refreshing disks on guest'
+        if ($os -ge 63) {
+            Invoke-Command -Session $PSSession -ScriptBlock { Update-HostStorageCache } -Verbose:$false
         } else {
-            Write-Error -Message 'No valid IP address returned from VM view. Can not update guest storage cache'
+            Invoke-Command -Session $PSSession -ScriptBlock { $x = 'rescan' | diskpart } -Verbose:$false
         }
     } catch {
-        Remove-PSSession -Session $session -ErrorAction SilentlyContinue
+        Remove-PSSession -Session $PSsession -ErrorAction SilentlyContinue
         Write-Error -Message 'There was a problem updating the guest storage cache'
         Write-Error -Message "$($_.InvocationInfo.ScriptName)($($_.InvocationInfo.ScriptLineNumber)): $($_.InvocationInfo.Line)"
         write-Error -Exception $_
