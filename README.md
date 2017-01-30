@@ -4,9 +4,9 @@
 POSHOrigin_vSphere is a set of PowerShell 5 based DSC resources for managing VMware vSphere objects via DSC.
 
 ## Overview
-POSHOrigin_vSphere is a set of PowerShell 5 based DSC resources for managing VMware vSphere objects via DSC. These resources are designed to be used 
-with [POSHOrigin](https://github.com/devblackops/POSHOrigin) as a Infrastructure as Code framework, but can be used natively by standard DSC 
-configurations as well. Integration with [POSHOrigin](https://github.com/devblackops/POSHOrigin) is accomplished via a separate 'Invoke.ps1' script 
+POSHOrigin_vSphere is a set of PowerShell 5 based DSC resources for managing VMware vSphere objects via DSC. These resources are designed to be used
+with [POSHOrigin](https://github.com/devblackops/POSHOrigin) as a Infrastructure as Code framework, but can be used natively by standard DSC
+configurations as well. Integration with [POSHOrigin](https://github.com/devblackops/POSHOrigin) is accomplished via a separate 'Invoke.ps1' script
 included in the module.
 
 ## Resources
@@ -22,6 +22,7 @@ Parameters
 | Name                  | Type         | Required | Description
 | :---------------------|:-------------|:---------|:-----------|
 | Name                  | string       | True     | Name of VM to create
+| Description           | string       | False    | Description for VM
 | Ensure                | string       | False    | Denotes if resource should exist or not exist.
 | vCenter               | string       | True     | FQDN of the vCenter to connect to
 | VMTemplate            | string       | True     | Name of VM template to deploy from
@@ -50,8 +51,8 @@ Parameters
 
 
 #### <a name="deploymentlocations"></a>Deployment location options
-The options below are valid DSC properties for VM deployment location. 
-> **ONLY ONE MAY BE USED PER VM CONFIGURATION**. 
+The options below are valid DSC properties for VM deployment location.
+> **ONLY ONE MAY BE USED PER VM CONFIGURATION**.
 Using more than one option will produce a runtime error.
 
 * Cluster
@@ -59,7 +60,7 @@ Using more than one option will produce a runtime error.
 * VMHost
 * vApp
 
-###Tags
+### Tags
 The tags parameter specified an array of tags to apply to the VM. Parameters expected are below.
 
 A couple of points:
@@ -83,7 +84,7 @@ tags = @(
 )
 ```
 
-###Disks
+### Disks
 The disks parameter specifies an array of VM disk configurations for the VM resource. Parameters expected are below. Each disk configuration will result in one hard disk being added to the VM.
 
 | Name        | Type    | Required | Description
@@ -119,7 +120,7 @@ disks = @(
 )
 ```
 
-###Networks
+### Networks
 The networks parameter specifies an array of VM network configurations for the VM resource. Parameters expected are below. Each network configuration will result in one virtual NIC being added to the VM.
 
 | Name           | Type     | Required | Description
@@ -132,7 +133,8 @@ The networks parameter specifies an array of VM network configurations for the V
 | DefaultGateway | string   | False    | Default gateway for NIC. **ONLY VALID WHEN 'IPAssignment' is set to 'Static'**
 | DNSServers     | string[] | False     | Array of DNS servers to apply on NIC. **NOT VALID WHEN 'IPAssignment' is set to 'DHCP'**
 
-######Static IP assignment
+###### Static IP assignment
+
 ```powerShell
 networks = @{
     portGroup = 'VLAN_500'
@@ -144,7 +146,8 @@ networks = @{
 }
 ```
 
-######DHCP IP assignment
+###### DHCP IP assignment
+
 ```powerShell
 networks = @{
     portGroup = 'VLAN_500'
@@ -152,7 +155,8 @@ networks = @{
 }
 ```
 
-######Automatic IP from IPAM
+###### Automatic IP from IPAM
+
 ```powerShell
 networks = @{
     portGroup = 'VLAN_500'
@@ -162,7 +166,7 @@ networks = @{
 }
 ```
 
-###Provisioners
+### Provisioners
 
 Provisioners are tasks that execute on the VM after it has been deployed. These are meant to assist in bootstrapping the VM but are not meant to fully manage the configuration of the guest OS.
 

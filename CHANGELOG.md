@@ -1,3 +1,19 @@
+## 1.4.2 (2016-11-29)
+    * Bug fixes
+        * Add computername to guest credential if not present.
+
+## 1.4.1 (2016-11-21)
+    * Bug fixes
+        * Fix bug when multple versions of the module are installed.
+
+## 1.4.0 (2016-11-03)
+    * Features
+        * Add the ability to define Chef Automate URL, token, and cert in the Chef provisioner options.
+
+    * Improvements
+        * Change how disk mapping is done between vSphere and Windows.
+        * Change to quick disk formating on Windows 2008.
+
 ## 1.3.0
     * Add support for managing tags on VMs.
     * Add support for installing/updating VM tools if out of date or not installed.
