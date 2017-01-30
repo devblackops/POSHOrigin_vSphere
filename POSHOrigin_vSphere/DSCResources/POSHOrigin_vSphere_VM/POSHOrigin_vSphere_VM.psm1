@@ -51,6 +51,9 @@ function Get-TargetResource {
         
         [System.String]
         $Tags,
+
+        [System.String]
+        $Description,
         
         [System.Boolean]
         $UpdateTools = $false,
@@ -114,6 +117,7 @@ function Get-TargetResource {
         ResourcePool = $ResourcePool
         VMHost = $VMHost
         Tags = $Tags
+        Description = $Description
         UpdateTools = $UpdateTools
         vApp = $vApp
         Provisioners = $Provisioners
@@ -166,6 +170,9 @@ function Set-TargetResource {
         
         [System.String]
         $Tags,
+
+        [System.String]
+        $Description,
         
         [System.Boolean]
         $UpdateTools = $false,
@@ -283,6 +290,11 @@ function Set-TargetResource {
             }
             
             if ($vm) {
+                # Set Description
+                if (-not (_TestVMDescription -vm $VM -Description $Description)) {
+                    _SetVMDescription -VM $vm -Description $Description
+                }
+
                 # Set RAM
                 if (-not (_TestVMRAM -vm $vm -RAM $vRAM)) {
                     _SetVMRAM -vm $vm -RAM $vRAM
@@ -313,7 +325,7 @@ function Set-TargetResource {
                 }
                 
                 # Set NICS
-                # TODO
+                # TODO                
 
                 # Power on VM and wait for OS customization to complete
                 if (-not (_TestVMPowerState -vm $vm -PowerOnAfterCreation $PowerOnAfterCreation)) {
@@ -325,29 +337,34 @@ function Set-TargetResource {
                     }
 
                     _WaitForVMTools -vm $vm -Credential $GuestCredentials
-                }
+                }                
                 
                 # Guest disks
-                $vm = Get-VM -Name $Name -Verbose:$false -ErrorAction SilentlyContinue | Select-Object -First 1
+                $vm = Get-VM -Name $Name -Verbose:$false -ErrorAction SilentlyContinue | Select-Object -First 1                
                 if ($VM.PowerState -eq 'PoweredOn') {
+
+                    # Establish CIM/PS remoting sessions for subsequent checks
+                    $ip = _GetGuestVMIPAddress -VM $vm
+                    $cimSession = _NewCIMSession -IPAddress $ip -Credential $GuestCredentials
+                    $psSession = _NewPSSession -IPAddress $ip -Credential $GuestCredentials                    
+
                     if ($updatedVMDisks -eq $true) {
-                        _refreshHostStorageCache -vm $vm -Credential $GuestCredentials
+                        _refreshHostStorageCache -PSSession $psSession
                     }
 
                     # Set guest disks
-                    if (-not (_TestGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials)) {
-                        _SetGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials
+                    $guestDiskParams = @{
+                        VM = $vm
+                        DiskSpec = $Disks
+                        CimSession = $cimSession
+                        PSSession = $psSession
+                    }
+                    if (-not (_TestGuestDisks @guestDiskParams )) {
+                        _SetGuestDisks @guestDiskParams
                     }
                 } else {
                     Write-Warning -Message 'VM is powered off. Skipping guest check'
-                }
-
-                # Set guest disks
-                if (-not (_TestGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials)) {
-                    _SetGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials
-                }
-            } else {
-                Write-Warning -Message 'VM is powered off. Skipping guest check'
+                }                
             }
 
             # Set VM Folder
@@ -438,6 +455,10 @@ function Set-TargetResource {
         Write-Error "$($_.InvocationInfo.ScriptName)($($_.InvocationInfo.ScriptLineNumber)): $($_.InvocationInfo.Line)"
         Write-Error $_
     }
+
+    # Cleanup connections
+    $cimSession | Remove-CimSession -Verbose:$false -ErrorAction SilentlyContinue
+    $psSession | Remove-PSSession -Verbose:$false -ErrorAction SilentlyContinue
     _DisconnectFromvCenter -vCenter $vCenter
 }
 
@@ -486,6 +507,9 @@ function Test-TargetResource {
         
         [System.String]
         $Tags,
+
+        [System.String]
+        $Description,
         
         [System.Boolean]
         $UpdateTools = $false,
@@ -557,6 +581,11 @@ function Test-TargetResource {
     }
 
     #region Run through tests
+    # Description
+    $descriptionResult = _TestVMDescription -VM $vm -Description $Description
+    $match = if ($descriptionResult) { 'MATCH'} else { 'MISMATCH' }
+    Write-Verbose -Message "Description: $match"
+
     # RAM
     $ramResult = _TestVMRAM -VM $vm -RAM $vRAM
     $match = if ( $ramResult) { 'MATCH' } else { 'MISMATCH' }
@@ -590,17 +619,19 @@ function Test-TargetResource {
     
     # NICs
     # TODO
-    
-    # Power state
-    $powerResult = _TestVMPowerState -vm $vm -PowerOnAfterCreation $PowerOnAfterCreation
-    $match = if ( $powerResult) { 'MATCH' } else { 'MISMATCH' }
-    Write-Verbose -Message "Power state: $match"
+       
+    # Establish CIM/PS remoting sessions for subsequent checks
+    $ip = _GetGuestVMIPAddress -VM $vm
+    $cimSession = _NewCIMSession -IPAddress $ip -Credential $GuestCredentials
+    $psSession = _NewPSSession -IPAddress $ip -Credential $GuestCredentials
 
     # Guest disks
     $guestDiskResult = $true
     if ($VM.PowerState -eq 'PoweredOn') {
-        _refreshHostStorageCache -vm $vm -Credential $GuestCredentials
-        $guestDiskResult = _TestGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials
+        #_refreshHostStorageCache -vm $vm -Credential $GuestCredentials
+        _refreshHostStorageCache -PSSession $psSession
+        #$guestDiskResult = _TestGuestDisks -vm $vm -DiskSpec $Disks -Credential $GuestCredentials
+        $guestDiskResult = _TestGuestDisks -vm $vm -DiskSpec $Disks -CimSession $CimSession -PSSession $PSSession
         $match = if ( $guestDiskResult) { 'MATCH' } else { 'MISMATCH' }
         Write-Verbose -Message "Guest disks: $match"
     } else {
@@ -622,8 +653,6 @@ function Test-TargetResource {
     $powerResult = _TestVMPowerState -vm $vm -PowerOnAfterCreation $PowerOnAfterCreation
     $match = if ( $powerResult) { 'MATCH' } else { 'MISMATCH' }
     Write-Verbose -Message "Power state: $match"
-
-    #endregion
     
     # VM Tools
     if ($UpdateTools) {
@@ -632,7 +661,9 @@ function Test-TargetResource {
         Write-Verbose -Message "VM Tools: $match"    
     } else {
         $toolsResult = $true
-    }    
+    }
+
+    #endregion    
 
     # Test provisioners
     $provisionerResults = @()
@@ -652,9 +683,12 @@ function Test-TargetResource {
         }
     }
 
+    # Cleanup connections
+    $cimSession | Remove-CimSession -Verbose:$false -ErrorAction SilentlyContinue
+    $psSession | Remove-PSSession -Verbose:$false -ErrorAction SilentlyContinue
     _DisconnectFromvCenter -vCenter $vCenter
     
-    if (-not ($ramResult -and $cpuResult -and $vmDiskResult -and $guestDiskResult -and $powerResult -and $folderResult -and $tagResult -and $toolsResult)) {
+    if (-not ($descriptionResult -and $ramResult -and $cpuResult -and $vmDiskResult -and $guestDiskResult -and $powerResult -and $folderResult -and $tagResult -and $toolsResult)) {
         Write-Debug -Message "One or more tests failed"
         return $false
     }
