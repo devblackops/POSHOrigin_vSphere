@@ -1,6 +1,6 @@
 @{
 RootModule = 'POSHOrigin_vSphere.psm1'
-ModuleVersion = '1.3.0'
+ModuleVersion = '1.4.2'
 GUID = 'af4099cf-30a1-44eb-8c74-a10948245227'
 Author = 'Brandon Olin'
 Copyright = '(c) 2016 Brandon Olin. All rights reserved.'
@@ -15,6 +15,14 @@ PrivateData = @{
         ProjectUri = 'https://github.com/devblackops/POSHOrigin_vSphere'
         #IconUri = ''
         ReleaseNotes = "
+## 1.4.0 (2016-11-03)
+    * Features
+        * Add the ability to define Chef Automate URL, token, and cert in the Chef provisioner options.
+
+    * Improvements
+        * Change how disk mapping is done between vSphere and Windows.
+        * Change to quick disk formating on Windows 2008.
+
 ## 1.3.0
     * Add support for managing tags on VMs.
     * Add support for installing/updating VM tools if out of date or not installed.
@@ -55,7 +63,7 @@ PrivateData = @{
 
 ## 1.1.7
     * Add support for VM folder placement
-    * Force reboot upon domain joins
+    * Force reboot upon domain join
 "
         # External dependent modules of this module
         # ExternalModuleDependencies = ''
