@@ -23,7 +23,18 @@ function _SetVMDisks {
         # Add VM disk
         if ($vmDisk -eq $null) {
             try {
-                $datastore = $vm | Get-Datastore -Verbose:$false | Select-Object -first 1
+
+                # If we have a swap file defined on a datstore
+                # don't try and create regular VMDKs on this datastore
+                if ($vm.ExtensionData.Layout.SwapFile) {
+                    $swapDatastoreName = $vm.ExtensionData.Layout.SwapFile.Split(']')[0].TrimStart('[')
+                }
+                if ($swapDatastoreName) {
+                    $datastore = $vm | Get-Datastore -Verbose:$false | Where-Object {$_.Name -ne $swapDatastoreName} | Select-Object -first 1
+                } else {
+                    $datastore = $vm | Get-Datastore -Verbose:$false | Select-Object -first 1
+                }
+
                 Write-Verbose -Message "Creating disk [$($disk.Name) - $($disk.SizeGB) GB] on datastore [$($datastore.Name)]"
                 $params = @{
                     VM = $vm
