@@ -66,7 +66,7 @@ switch ($type) {
                     $hash.GuestCredentials = $tCred
                 } else {
                     $hash.GuestCredentials = $Options.Options.GuestCredentials
-                }                
+                }
             }
             if ($Options.Options.DomainJoinCredentials -is [pscredential]) {
                 $hash.DomainJoinCredentials = $Options.Options.DomainJoinCredentials
@@ -111,7 +111,7 @@ switch ($type) {
                     [psobject]$ResourceOptions
                 )
 
-                Import-DscResource -Name VM -ModuleName POSHOrigin_vSphere -ModuleVersion 1.4.2
+                Import-DscResource -Name VM -ModuleName POSHOrigin_vSphere -ModuleVersion 1.4.3
 
                 # Credentials may be specified in line. Test for that
                 if ($ResourceOptions.Options.vCenterCredentials -is [pscredential]) {
@@ -178,7 +178,7 @@ switch ($type) {
                 } else {
                     $tags = @()
                 }
-                
+
                 VM $ResourceOptions.Name {
                     Ensure = $ResourceOptions.options.Ensure
                     Name = $ResourceOptions.Name
