@@ -19,173 +19,161 @@ process {
 
         # Get target IP address
         $t = Get-VM -Id $options.vm.Id -Verbose:$false -Debug:$false
+        #$ip = $t.Guest.IPAddress | Where-Object { ($_ -notlike '169.*') -and ( $_ -notlike '*:*') } | Select-Object -First 1
+        $ip = _GetGuestVMIPAddress -VM $t
 
-        if ($t.PowerState -eq 'PoweredOn') {
-       
-            $ip = _GetGuestVMIPAddress -VM $t
-            if ($null -ne $ip -and $ip -ne [string]::Empty) {
-                $chefSvc = Invoke-Command -ComputerName $ip -Credential $Options.GuestCredentials -ScriptBlock { Get-Service -Name chef-client -ErrorAction SilentlyContinue } -Verbose:$false
-                $chefSvcResult = $true
-                if ($chefSvc) {
+        if ($null -ne $ip -and $ip -ne [string]::Empty) {
+            $chefSvc = Invoke-Command -ComputerName $ip -Credential $Options.GuestCredentials -ScriptBlock { Get-Service -Name chef-client -ErrorAction SilentlyContinue } -Verbose:$false
+            $chefSvcResult = $true
+            if ($chefSvc) {
 
-                    # Get the node
-                    $params = @{
-                        Method = 'GET'
-                        OrgUri = $chefOptions.url
-                        Path = "/nodes/$($chefOptions.NodeName)"
-                        UserItem = (Split-Path -Path $chefOptions.clientKey -Leaf).Split('.')[0]
-                        KeyPath = $chefOptions.clientKey
+                # Get the node
+                $params = @{
+                    Method = 'GET'
+                    OrgUri = $chefOptions.url
+                    Path = "/nodes/$($chefOptions.NodeName)"
+                    UserItem = (Split-Path -Path $chefOptions.clientKey -Leaf).Split('.')[0]
+                    KeyPath = $chefOptions.clientKey
+                }
+                $chefNode = & "$PSScriptRoot\Helpers\_InvokeChefQuery.ps1" @params
+
+                # If we found a node in Chef, do extra validation
+                $chefNodeResult = $true
+                if ($chefNode) {
+                    # Verify environment
+                    $envResult = $true
+                    if ($chefOptions.environment) {
+                        if ($chefNode.chef_environment.ToLower() -ne $chefOptions.environment.ToLower()) {
+                            Write-Verbose -Message "Chef environment: MISMATCH [$($chefNode.chef_environment.ToLower()) <> $($chefOptions.environment.ToLower()))]"
+                            $envResult = $false
+                        }
                     }
-                    $chefNode = & "$PSScriptRoot\Helpers\_InvokeChefQuery.ps1" @params
+                    if ($envResult) {
+                        Write-Verbose -Message "Chef environment: MATCH"
+                    }
 
-                    # If we found a node in Chef, do extra validation
-                    $chefNodeResult = $true
-                    if ($chefNode) {
-                        # Verify environment
-                        $envResult = $true
-                        if ($chefOptions.environment) {
-                            if ($chefNode.chef_environment.ToLower() -ne $chefOptions.environment.ToLower()) {
-                                Write-Verbose -Message "Chef environment: MISMATCH [$($chefNode.chef_environment.ToLower()) <> $($chefOptions.environment.ToLower()))]"
-                                $envResult = $false
+                    # Verify run list matches
+                    $runlistResult = $true
+                    if (-not $chefOptions.runlist -and $chefOptions.runList.Count -ne 0) {
+                        $chefOptions | Add-Member -MemberType NoteProperty -Name runlist -Value @()
+                    }
+                    if ($chefOptions.runlist.Count -gt 0) {
+                        # Create a string array of our runlist so we can easily compare it
+                        # to what we get back from the Chef API
+                        $refRunList = @($chefOptions.runlist) | ForEach-Object {
+                            if ($_.recipe) {
+                                "recipe[$($_.recipe)]"
+                            } elseif ($_.role) {
+                                "role[$($_.role)]"
                             }
                         }
-                        if ($envResult) {
-                            Write-Verbose -Message "Chef environment: MATCH"
-                        }
-
-                        # Verify run list matches
-                        $runlistResult = $true
-                        if (-not $chefOptions.runlist -and $chefOptions.runList.Count -ne 0) {
-                            $chefOptions | Add-Member -MemberType NoteProperty -Name runlist -Value @()
-                        }
-                        if ($chefOptions.runlist.Count -gt 0) {
-                            # Create a string array of our runlist so we can easily compare it
-                            # to what we get back from the Chef API
-                            $refRunList = @($chefOptions.runlist) | ForEach-Object {
-                                if ($_.recipe) {
-                                    "recipe[$($_.recipe)]"
-                                } elseif ($_.role) {
-                                    "role[$($_.role)]"
-                                }
-                            }
-                            $diffRunList = @($chefNode.run_list)
-                            if ($diffRunList.Count -gt 0) {
-                                # Compare the Chef node runlist to what our desired runlist is
-                                if (Compare-Object -ReferenceObject $refRunList -DifferenceObject $diffRunList) {
-                                    $runlistResult = $false
-                                }
-                            } else {
-                                # The Chef node has no runlist but should
+                        $diffRunList = @($chefNode.run_list)
+                        if ($diffRunList.Count -gt 0) {
+                            # Compare the Chef node runlist to what our desired runlist is
+                            if (Compare-Object -ReferenceObject $refRunList -DifferenceObject $diffRunList) {
                                 $runlistResult = $false
                             }
                         } else {
-                            # Our desired runlist is nothing. Check if Chef node has a run list
-                            if ($chefNode.run_list.count -gt 0) {
-                                $runlistResult = $false
-                            }
-                        }
-                        if (-Not $runListResult) {
-                            Write-Verbose -Message "Chef runlist: MISMATCH"
-                        } else {
-                            Write-Verbose -Message "Chef runlist: MATCH"
-                        }
-
-                        # Verify attributes
-                        # If we didn't specify any desired attributes, create an empty set
-                        # so we can compare it against Chef
-                        # Chef node attributes usually have an empty tags attributes by default
-                        # so add that to the reference if isn't doesn't already exist
-
-                        # Remove 'tags' from the attributes as we'll compare those separately 
-                        $attributeResult = $true
-                        if (-Not $ChefOptions.attributes) {
-                            #$chefOptions | Add-Member -MemberType NoteProperty -Name attributes -Value @{tags = @{}}
-                            # Create empty hashtable so we can compare it against the Chef node
-                            $chefOptions | Add-Member -MemberType NoteProperty -Name attributes -Value @{}
-                        } else {
-                            if (-Not $ChefOptions.attributes.tags) {
-                                #$chefOptions.attributes | Add-Member -MemberType NoteProperty -Name tags -Value @{}
-                                #Tags should be listed as a seperate property in the provisioner options 
-                                $chefOptions.attributes.PSObject.Properties.Remove('tags')
-                            }
-                        }
-                        $refJson = $chefOptions.attributes | ConvertTo-Json 
-                        $chefNode.normal.PSObject.Properties.Remove('tags')
-                        $diffJson = $chefNode.normal | ConvertTo-Json
-
-                        Write-Debug -Message 'Ref'
-                        Write-Debug -Message $refJson
-                        Write-Debug -Message 'Diff'
-                        Write-Debug -Message $diffJson
-
-                        if ($diffJson -ne $refJson) {
-                            Write-Verbose -Message "Chef attributes: MISMATCH"
-                            $attributeResult = $false
-                        } else {
-                            Write-Verbose -Message "Chef attributes: MATCH"
-                        }
-
-                        $automateCmd = {
-                            $result = $true
-                            $chefOptions = $args[0]
-                            $automateUrl = $chefOptions.automateUrl
-                            $automateToken = $chefOptions.automateToken
-                            $automateCert = $chefOptions.automateCert
-                            $automateCertName = $automateCert.split('/') | Select-Object -Last 1
-                            $testExists = Test-Path "C:\chef\trusted_certs\$automateCertName"
-                            if (!($testExists)) {
-                                $result = $false
-                            } else {
-                                Invoke-WebRequest -Uri "$automateCert" -OutFile "C:\chef\$automateCertName" | Out-Null
-                                $serverVersion = Get-Content "C:\chef\trusted_certs\$automateCertName"
-                                $currentVersion = Get-Content "C:\chef\$automateCertName"
-                                $compare = Compare-Object $serverVersion $currentVersion
-                                Start-Sleep -Seconds 1
-                                Remove-Item -Path "C:\chef\$automateCertName" -Force -Confirm:$false
-                                if ($compare) {
-                                    $result = $false
-                                }
-                            }
-                            $clientRB = Get-Content C:\chef\client.rb -ErrorAction SilentlyContinue | Out-String
-                            $autoUrl = "data_collector.server_url`t'$automateUrl'"
-                            $autoToken = "data_collector.token`t'$automateToken'"
-                            if (($clientRB -notlike "*$autoUrl*") -or ($clientRB -notlike "*$autoToken*")) {
-                                $result = $false
-                            }
-                            return $result
-                        }
-                        $automateParams = @{
-                            ComputerName = $ip
-                            Credential = $Options.GuestCredentials
-                            ScriptBlock = $automateCmd
-                            ArgumentList = $chefOptions
-                        }
-                        if ($chefOptions.automateUrl) {
-                            $testAutomate = Invoke-Command @automateParams
-                            if (!($testAutomate)) {
-                                $chefNodeResult = $false
-                                Write-Verbose -Message 'Chef automate settings: MISMATCH'
-                            } else {
-                                Write-Verbose -Message 'Chef automate settings: MATCH'
-                            }
+                            # The Chef node has no runlist but should
+                            $runlistResult = $false
                         }
                     } else {
-                        $chefNodeResult = $false
-                        Write-Verbose -Message 'Chef client: installed but node could not be found on Chef server'
+                        # Our desired runlist is nothing. Check if Chef node has a run list
+                        if ($chefNode.run_list.count -gt 0) {
+                            $runlistResult = $false
+                        }
+                    }
+                    if (-Not $runListResult) {
+                        Write-Verbose -Message "Chef runlist: MISMATCH"
+                    } else {
+                        Write-Verbose -Message "Chef runlist: MATCH"
+                    }
+
+                    # Verify attributes
+                    # If we didn't specify any desired attributes, create an empty set
+                    # so we can compare it against Chef
+                    # Chef node attributes usually have an empty tags attributes by default
+                    # so add that to the reference if isn't doesn't already exist
+                    $attributeResult = $true
+                    if (-Not $ChefOptions.attributes) {
+                        $chefOptions | Add-Member -MemberType NoteProperty -Name attributes -Value @{tags = @()}
+                    } else {
+                        if (-Not $ChefOptions.attributes.tags) {
+                            $chefOptions.attributes | Add-Member -MemberType NoteProperty -Name tags -Value @()
+                        }
+                    }
+                    $refJson = $chefOptions.attributes | ConvertTo-Json
+                    $diffJson = $chefNode.normal | ConvertTo-Json
+
+                    Write-Debug -Message 'Ref'
+                    Write-Debug -Message $refJson
+                    Write-Debug -Message 'Diff'
+                    Write-Debug -Message $diffJson
+
+                    if ($diffJson -ne $refJson) {
+                        Write-Verbose -Message "Chef attributes: MISMATCH"
+                        $attributeResult = $false
+                    } else {
+                        Write-Verbose -Message "Chef attributes: MATCH"
+                    }
+
+                    $automateCmd = {
+                        $result = $true
+                        $chefOptions = $args[0]
+                        $automateUrl = $chefOptions.automateUrl
+                        $automateToken = $chefOptions.automateToken
+                        $automateCert = $chefOptions.automateCert
+                        $automateCertName = $automateCert.split('/') | Select-Object -Last 1
+                        $testExists = Test-Path "C:\chef\trusted_certs\$automateCertName"
+                        if (!($testExists)) {
+                            $result = $false
+                        } else {
+                            Invoke-WebRequest -Uri "$automateCert" -OutFile "C:\chef\$automateCertName" | Out-Null
+                            $serverVersion = Get-Content "C:\chef\trusted_certs\$automateCertName"
+                            $currentVersion = Get-Content "C:\chef\$automateCertName"
+                            $compare = Compare-Object $serverVersion $currentVersion
+                            Start-Sleep -Seconds 1
+                            Remove-Item -Path "C:\chef\$automateCertName" -Force -Confirm:$false
+                            if ($compare) {
+                                $result = $false
+                            }
+                        }
+                        $clientRB = Get-Content C:\chef\client.rb -ErrorAction SilentlyContinue | Out-String
+                        $autoUrl = "(.*)data_collector.server_url\s+'$automateUrl(.*)'"
+                        $autoToken = "(.*)data_collector.token\s+'$automateToken(.*)'"
+                        if (($clientRB -notmatch $autoUrl) -or ($clientRB -notmatch $autoToken)) {
+                            $result = $false
+                        }
+                        return $result
+                    }
+                    $automateParams = @{
+                        ComputerName = $ip
+                        Credential = $Options.GuestCredentials
+                        ScriptBlock = $automateCmd
+                        ArgumentList = $chefOptions
+                    }
+                    if ($chefOptions.automateUrl) {
+                        $testAutomate = Invoke-Command @automateParams
+                        if (!($testAutomate)) {
+                            $chefNodeResult = $false
+                            Write-Verbose -Message 'Chef automate settings: MISMATCH'
+                        } else {
+                            Write-Verbose -Message 'Chef automate settings: MATCH'
+                        }
                     }
                 } else {
-                    Write-Verbose -Message 'Chef client: not found'
-                    $chefSvcResult = $false
+                    $chefNodeResult = $false
+                    Write-Verbose -Message 'Chef client: installed but node could not be found on Chef server'
                 }
             } else {
-                throw 'No valid IP address returned from VM view. Can not test for Chef client'
+                Write-Verbose -Message 'Chef client: not found'
+                $chefSvcResult = $false
             }
-            $result = ($chefSvcResult -and $chefNodeResult -and $envResult -and $runlistResult -and $attributeResult)    
         } else {
-            Write-Warning -Message 'VM is powered off. Unable to validate Chef provisioner. Defaulting to MATCH.'
-            $result = $true
+            throw 'No valid IP address returned from VM view. Can not test for Chef client'
         }
 
+        $result = ($chefSvcResult -and $chefNodeResult -and $envResult -and $runlistResult -and $attributeResult)
         $match = if ($result) { 'MATCH' } else { 'MISMATCH' }
         Write-Verbose -Message "Chef provisioner: $match"
         return $result
