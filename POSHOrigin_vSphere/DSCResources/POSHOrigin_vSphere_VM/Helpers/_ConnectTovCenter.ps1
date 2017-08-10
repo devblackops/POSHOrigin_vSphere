@@ -2,15 +2,22 @@ function _ConnectTovCenter {
     [cmdletbinding()]
     param(
         [string]$vCenter,
+        
         [pscredential]$Credential
     )
 
+    $mods = @(
+        'VMware.VimAutomation.Core'
+        'Vmware.VimAutomation.Sdk'
+        'VMware.VimAutomation.Vds'        
+    )
+
     if ($null -ne (Get-Module -Name VMware.VimAutomation* -ListAvailable -ErrorAction SilentlyContinue -Verbose:$false)) {
-        Import-Module VMware.VimAutomation.Core -Verbose:$false
-        Import-Module Vmware.VimAutomation.Sdk -Verbose:$false
-        Import-Module VMware.VimAutomation.Vds -Verbose:$false
+        $mods | foreach {
+            Import-Module -Name $_ -ErrorAction Stop -Verbose:$false -Debug:$false
+        }        
     } else {
-        Throw 'VMware PowerCLI modules do not appear to be installed on this system.'
+        throw 'VMware PowerCLI modules do not appear to be installed on this system.'
     }
 
     try {

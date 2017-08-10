@@ -7,7 +7,7 @@ function _FormatOldGuestDisk {
 
         [Parameter(Mandatory)]
         [ValidateNotNull()]
-        $session,
+        $PSSession,
 
         [ValidateSet('GPT', 'MBR')]
         [string]$PartitionStyle = 'GPT',
@@ -18,22 +18,19 @@ function _FormatOldGuestDisk {
         [string]$VolumeLabel = [string]::empty,
 
         [ValidateSet(4096, 8192, 16386, 32768, 65536)]
-        [int]$AllocationUnitSize = 4096,
-
-        [Parameter(Mandatory)]
-        $cim
+        [int]$AllocationUnitSize = 4096
     )
 
     Write-Debug -Message ($disk | fl * | Out-String)
     Write-Debug -Message "Looking at disk $($disk.Index)"
-    
+
     try {
-        
+
         #Test if disk is online or offline
         Write-Verbose -Message "Testing if disk [$($disk.Index)] is online"
         $diskID = $disk.Index
         $isOnlineParams = @{
-            Session = $session
+            Session = $PSSession
             ArgumentList = $diskID
             Verbose = $false
             ScriptBlock = {
@@ -50,7 +47,7 @@ function _FormatOldGuestDisk {
         if ($isOnline -ne 'Online') {
             Write-Verbose -Message "Onlining disk [$($disk.Index)]"
             $onlineDiskParams = @{
-                Session = $session
+                Session = $PSSession
                 ArgumentList = $diskID
                 Verbose = $false
                 ScriptBlock = {
@@ -64,7 +61,7 @@ function _FormatOldGuestDisk {
         }
 
         $isReadOnlyParams = @{
-            Session = $session
+            Session = $PSSession
             ArgumentList = $diskID
             Verbose = $false
             ScriptBlock = {
@@ -81,7 +78,7 @@ function _FormatOldGuestDisk {
         if ($isReadOnly -ne 'No') {
             Write-Verbose -Message "Setting disk [$($disk.Index)] to Readonly = no"
             $readOnlyParams = @{
-                Session = $session
+                Session = $PSSession
                 ArgumentList = $diskID
                 Verbose = $false
                 ScriptBlock = {
@@ -89,17 +86,17 @@ function _FormatOldGuestDisk {
                     $x = "Select Disk $($diskID)", "attributes disk clear readonly" | diskpart | Out-Null
                 }
             }
-            Invoke-Command @readOnlyParams            
+            Invoke-Command @readOnlyParams
         } else {
             Write-Debug -Message "Disk $($disk.Index) is already not ReadOnly"
         }
 
-        
+
         if ($disk.Partitions -eq 0) {
 
             # Format the disk
             $formatParams = @{
-                Session = $session
+                Session = $PSSession
                 ArgumentList = @($disk.Index, $VolumeName, $VolumeLabel, $AllocationUnitSize, $PartitionStyle )
                 ScriptBlock = {
                     $verbosePreference = $using:VerbosePreference
@@ -108,7 +105,7 @@ function _FormatOldGuestDisk {
                     $VolLabel = $args[2].ToString()
                     $AlloSize = $args[3].ToString()
                     $PartStyle = $args[4].ToString()
-                    
+
                     # Initialize disk
                     Write-Verbose -Message "Initializing disk [$($diskID)] with [$($PartStyle)]"
                     $x = "Select Disk $($diskID)", "convert $($PartStyle)" | diskpart | Out-Null

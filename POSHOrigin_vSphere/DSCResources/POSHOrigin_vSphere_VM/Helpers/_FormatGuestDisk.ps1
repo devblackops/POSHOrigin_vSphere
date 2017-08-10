@@ -6,8 +6,7 @@ function _FormatGuestDisk {
         $disk,
 
         [Parameter(Mandatory)]
-        [ValidateNotNull()]
-        $session,
+        [System.Management.Automation.Runspaces.PSSession]$PSSession,
 
         [ValidateSet('GPT', 'MBR')]
         [string]$PartitionStyle = 'GPT',
@@ -29,7 +28,7 @@ function _FormatGuestDisk {
         if ($disk.IsOffline -eq $true) {
             Write-Verbose -Message "Onlining disk [$($disk.Number)]"
             $onlineDiskParams = @{
-                Session = $session
+                Session = $PSSession
                 ArgumentList = $disk
                 Verbose = $false
                 ScriptBlock = {
@@ -50,7 +49,7 @@ function _FormatGuestDisk {
 
             # Format the disk
             $formatParams = @{
-                Session = $session
+                Session = $PSSession
                 ArgumentList = @($disk, $VolumeName, $VolumeName, $AllocationUnitSize, $PartitionStyle )
                 ScriptBlock = {
                     $verbosePreference = $using:VerbosePreference
@@ -81,7 +80,7 @@ function _FormatGuestDisk {
 
             # Get partitions
             $getPartitionParams = @{
-                Session = $session
+                Session = $PSSession
                 ArgumentList = $disk
                 ScriptBlock = { 
                     @($args[0] | Get-Partition | Where-Object {$_.Type -ne 'Reserved' -and $_.IsSystem -eq $false})
@@ -92,7 +91,7 @@ function _FormatGuestDisk {
             # Format partition
             if ($partition.Count -eq 0) {
                 $formatParams = @{
-                    Session = $session
+                    Session = $PSSession
                     ArgumentList = @($disk, $config.VolumeName, $config.VolumeLabel, $config.BlockSize)
                     Verbose = $false 
                     ScriptBlock = {

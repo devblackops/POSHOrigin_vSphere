@@ -46,6 +46,7 @@ switch ($type) {
                 vApp = $Options.options.vApp
                 VMFolder = $Options.options.VMFolder
                 Tags = $Options.options.Tags
+                Description = $Options.options.Description
                 UpdateTools = $Options.options.UpdateTools
                 InitialDatastore = $Options.options.InitialDatastore
                 Disks = ConvertTo-Json -InputObject $Options.options.disks -Depth 100
@@ -59,7 +60,13 @@ switch ($type) {
                 $hash.vCenterCredentials = $Options.Options.vCenterCredentials
             }
             if ($Options.Options.GuestCredentials -is [pscredential]) {
-                $hash.GuestCredentials = $Options.Options.GuestCredentials
+                if ($Options.Options.GuestCredentials.UserName -notcontains '\') {
+                    $userName = "$($Options.Name)`\$($Options.Options.GuestCredentials.UserName)"
+                    $tCred = New-Object System.Management.Automation.PSCredential -ArgumentList ($userName, $Options.Options.GuestCredentials.Password)
+                    $hash.GuestCredentials = $tCred
+                } else {
+                    $hash.GuestCredentials = $Options.Options.GuestCredentials
+                }
             }
             if ($Options.Options.DomainJoinCredentials -is [pscredential]) {
                 $hash.DomainJoinCredentials = $Options.Options.DomainJoinCredentials
@@ -104,7 +111,7 @@ switch ($type) {
                     [psobject]$ResourceOptions
                 )
 
-                Import-DscResource -Name VM -ModuleName POSHOrigin_vSphere
+                Import-DscResource -Name VM -ModuleName POSHOrigin_vSphere -ModuleVersion 1.4.3
 
                 # Credentials may be specified in line. Test for that
                 if ($ResourceOptions.Options.vCenterCredentials -is [pscredential]) {
@@ -130,10 +137,17 @@ switch ($type) {
                 }
                 if ($ResourceOptions.options.secrets.guest -or $ResourceOptions.options.secrets.GuestCredentials ) {
                     if ($ResourceOptions.options.secrets.guest) {
-                        $guestCred = $ResourceOptions.options.secrets.guest.credential
+                        $tCred = $ResourceOptions.options.secrets.guest.credential
                     } else {
-                        $guestCred = $ResourceOptions.options.secrets.guestCredentials.credential
+                        $tCred = $ResourceOptions.options.secrets.guestCredentials.credential
                     }
+                    # If the guest credential doesn't have a domain or computer name
+                    # as part of the username, make sure to add it
+                    if ($tCred.UserName -notcontains '\') {
+                        $userName = "$($ResourceOptions.Name)`\$($tCred.UserName)"
+                        $tCred = New-Object System.Management.Automation.PSCredential -ArgumentList ($userName, $tCred.Password)
+                    }
+                    $guestCred = $tCred
                 }
                 if ($ResourceOptions.options.secrets.ipam -or $ResourceOptions.options.secrets.IPAMCredentials ) {
                     if ($ResourceOptions.options.secrets.ipam) {
@@ -164,7 +178,7 @@ switch ($type) {
                 } else {
                     $tags = @()
                 }
-                
+
                 VM $ResourceOptions.Name {
                     Ensure = $ResourceOptions.options.Ensure
                     Name = $ResourceOptions.Name
@@ -183,6 +197,7 @@ switch ($type) {
                     VMFolder = $ResourceOptions.options.VMFolder
                     UpdateTools = $ResourceOptions.options.UpdateTools
                     Tags = $tags
+                    Description = $ResourceOptions.options.Description
                     InitialDatastore = $ResourceOptions.options.InitialDatastore
                     Disks = ConvertTo-Json -InputObject $ResourceOptions.options.disks
                     CustomizationSpec = $ResourceOptions.options.CustomizationSpec

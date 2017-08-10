@@ -1,9 +1,9 @@
 @{
 RootModule = 'POSHOrigin_vSphere.psm1'
-ModuleVersion = '1.4.0'
+ModuleVersion = '1.4.3'
 GUID = 'af4099cf-30a1-44eb-8c74-a10948245227'
 Author = 'Brandon Olin'
-Copyright = '(c) 2016 Brandon Olin. All rights reserved.'
+Copyright = '(c) 2017 Brandon Olin. All rights reserved.'
 Description = 'DSC resources to manage VMware vSphere with POSHOrigin.'
 PowerShellVersion = '5.0'
 ProcessorArchitecture = 'None'
@@ -15,6 +15,22 @@ PrivateData = @{
         ProjectUri = 'https://github.com/devblackops/POSHOrigin_vSphere'
         #IconUri = ''
         ReleaseNotes = "
+## 1.4.3 (2017-08-09)
+    * Improvements
+        * Increase resiliency when retrieving guest VM IP address
+        * Don't create VM disks on swap datastores
+        * Add support for increasing vCPU while VM is powered on
+        * Add support for setting VM [Notes] property via [Description] property on resource
+        * Improve VM disk to guest disk mapping logic
+
+## 1.4.2 (2016-11-29)
+    * Bug fixes
+        * Add computername to guest credential if not present.
+
+## 1.4.1 (2016-11-21)
+    * Bug fixes
+        * Fix bug when multple versions of the module are installed.
+
 ## 1.4.0 (2016-11-03)
     * Features
         * Add the ability to define Chef Automate URL, token, and cert in the Chef provisioner options.

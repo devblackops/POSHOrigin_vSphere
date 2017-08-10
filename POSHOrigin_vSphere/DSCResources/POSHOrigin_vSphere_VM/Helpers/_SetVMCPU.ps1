@@ -22,8 +22,22 @@ function _SetVMCPU {
     if ($vm.PowerState -eq 'PoweredOn') {
         # TODO
         # Deal will powered on VMs and increasing CPU
-        Write-Error -Message 'Can not change vCPU while VM is powered on. This will be fixed in a later release.'
-        $continue = $false
+
+        # Validate that we are only increasing sockets or cores
+        # We can't decrease these while the VM is powered on
+        if ($TotalvCPU -gt $vm.ExtensionData.Config.Hardware.NumCPU) {
+            If ($CoresPerSocket -ge $vm.ExtensionData.Config.Hardware.NumCoresPerSocket) {
+                if ($vm.ExtensionData.Config.CpuHotAddEnabled) {
+                    $continue = $true
+                } else {
+                    Write-Error -Message 'CPU Hot Add is not enabled. Can not change vCPU while VM is powered on.'
+                }
+            } else {
+                Write-Error -Message "Can't decrease number of cores per socket while the VM is powered on."    
+            }
+        } else {
+            Write-Error -Message "Can't decrease number of total vCPUs while VM is powered on."
+        }
     } else {
         $continue = $true        
     }
@@ -38,7 +52,7 @@ function _SetVMCPU {
         $task = $null
         if ($CoresPerSocket -ne 0) {
             $sockets = $TotalvCPU / $CoresPerSocket
-            Write-Verbose -Message "Changing $($VM.Name) vCPU to $TotalvCPU ($($sockets):$($CoresPerSocket))"
+            Write-Verbose -Message "Changing vCPU to $TotalvCPU ($($sockets):$($CoresPerSocket))"
             $task = $vm.extensiondata.reconfigvm_task($spec)
         } else {
             throw 'CoresPerSocket can not be 0'
