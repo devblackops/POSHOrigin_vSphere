@@ -1,3 +1,11 @@
+## 1.4.3 (2017-08-09)
+    * Improvements
+        * Increase resiliency when retrieving guest VM IP address
+        * Don't create VM disks on swap datastores
+        * Add support for increasing vCPU while VM is powered on
+        * Add support for setting VM [Notes] property via [Description] property on resource
+        * Improve VM disk to guest disk mapping logic
+
 ## 1.4.2 (2016-11-29)
     * Bug fixes
         * Add computername to guest credential if not present.
