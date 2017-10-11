@@ -1,6 +1,6 @@
 @{
 RootModule = 'POSHOrigin_vSphere.psm1'
-ModuleVersion = '1.4.3'
+ModuleVersion = '1.4.4'
 GUID = 'af4099cf-30a1-44eb-8c74-a10948245227'
 Author = 'Brandon Olin'
 Copyright = '(c) 2017 Brandon Olin. All rights reserved.'
@@ -15,6 +15,10 @@ PrivateData = @{
         ProjectUri = 'https://github.com/devblackops/POSHOrigin_vSphere'
         #IconUri = ''
         ReleaseNotes = "
+## 1.4.4 (unreleased)
+    * Bug fixes
+        * Add additional verification for virtual switches when deploying directly to a VM host.
+
 ## 1.4.3 (2017-08-09)
     * Improvements
         * Increase resiliency when retrieving guest VM IP address

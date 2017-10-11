@@ -12,15 +12,15 @@ function _CreateVM {
         [Parameter(Mandatory, ParameterSetName ='cluster')]
         [ValidateNotNullOrEmpty()]
         [string]$Cluster,
-        
+
         [Parameter(Mandatory, ParameterSetName = 'resourcepool')]
         [ValidateNotNullOrEmpty()]
         [string]$ResourcePool,
-        
+
         [Parameter(Mandatory, ParameterSetName = 'vmhost')]
         [ValidateNotNullOrEmpty()]
         [string]$VMHost,
-        
+
         [Parameter(Mandatory, ParameterSetName = 'vapp')]
         [ValidateNotNullOrEmpty()]
         [string]$vApp,
@@ -56,18 +56,18 @@ function _CreateVM {
 
         # Resolve VM template
         $template = Get-Template -Name $VMTemplate -verbose:$false | Select-Object -First 1
-        if ($template -ne $null) { 
+        if ($template -ne $null) {
             Write-Debug -Message "Template: $($template.Name)"
         } else {
             Write-Error -Message "Unable to resolve template $VMTemplate"
             $continue = $false
         }
-        
+
         switch ($PSCmdlet.ParameterSetName) {
             'cluster' {
                 # Resolve cluster
                 $viContainer = Get-Cluster -Name $Cluster -Verbose:$false -ErrorAction SilentlyContinue | Select-Object -First 1
-                if ($viContainer -ne $null) { 
+                if ($viContainer -ne $null) {
                     Write-Debug -Message "Cluster: $($viContainer.Name)"
                 } else {
                     Write-Error -Message "Unable to resolve cluster [$Cluster]"
@@ -136,10 +136,10 @@ function _CreateVM {
         # and resolve network portgroups
         $netConfigs = $NICSpec | ConvertFrom-Json
         foreach ($netConfig in $netConfigs) {
-            
+
             # Verify the IP address(s) that we're about to set are not already in use
-            if ($netConfig.IPAddress) {                
-                Write-Debug -Message "Pinging $($netConfig.IPAddress)"                
+            if ($netConfig.IPAddress) {
+                Write-Debug -Message "Pinging $($netConfig.IPAddress)"
                 $pingable = Test-Connection -ComputerName $netConfig.IPAddress -Count 2 -Quiet
                 if ($pingable) {
                     Write-Error -Message "$($netConfig.IPAddress) appears to already be in use."
@@ -148,9 +148,18 @@ function _CreateVM {
             }
 
             if ($null -eq (Get-VDPortGroup -Name $netConfig.PortGroup -ErrorAction SilentlyContinue -Verbose:$false -Debug:$false)) {
-                if ($null -eq (Get-VirtualPortGroup -Name $netConfig.PortGroup -ErrorAction SilentlyContinue -Verbose:$false -Debug:$false)) {
-                    Write-Error -Message "Unable to resolve portgroup $($netConfig.PortGroup)"
-                    $continue = $false
+
+                if ($PSCmdlet.ParameterSetName -eq 'vmhost') {
+                    # If deploying to VM host
+                    if ($null -eq (Get-VirtualPortGroup -Name $netConfig.PortGroup -VMHost $VMHost -ErrorAction SilentlyContinue -Verbose:$false -Debug:$false)) {
+                        Write-Error -Message "Unable to resolve vswitch $($netConfig.PortGroup)"
+                        $continue = $false
+                    }
+                } else {
+                    if ($null -eq (Get-VirtualPortGroup -Name $netConfig.PortGroup -ErrorAction SilentlyContinue -Verbose:$false -Debug:$false)) {
+                        Write-Error -Message "Unable to resolve portgroup $($netConfig.PortGroup)"
+                        $continue = $false
+                    }
                 }
             }
         }
@@ -174,9 +183,9 @@ function _CreateVM {
                 $custSpecInstr += @{
                     OSCustomizationSpec = $null
                     IpMode = 'UseStaticIp'
-                    IpAddress = $IPInfo.ipv4addr 
+                    IpAddress = $IPInfo.ipv4addr
                     SubnetMask = $netInfo.subnetMask
-                    DefaultGateway = $netInfo.gateway 
+                    DefaultGateway = $netInfo.gateway
                     Dns = $netConfig.DNSServers
                 }
             }
@@ -187,7 +196,7 @@ function _CreateVM {
         # Do we have all the information we need to provision the VM?
         if ($continue) {
             Write-Verbose "Creating VM [$Name]"
-            
+
             # Create VM asynchronously and get task object
             $t = $null
             $params = @{

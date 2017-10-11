@@ -1,3 +1,8 @@
+
+## 1.4.4 (unreleased)
+    * Bug fixes
+        * Add additional verification for virtual switches when deploying directly to a VM host.
+
 ## 1.4.3 (2017-08-09)
     * Improvements
         * Increase resiliency when retrieving guest VM IP address
