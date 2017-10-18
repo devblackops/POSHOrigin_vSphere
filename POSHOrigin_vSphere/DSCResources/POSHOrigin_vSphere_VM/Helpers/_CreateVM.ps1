@@ -196,6 +196,7 @@ function _CreateVM {
                 Datastore = $datastore
                 #DiskStorageFormat = $diskFormat
                 ResourcePool = $viContainer
+                OSCustomizationSpec = $custSpec
                 RunAsync = $true
                 Verbose = $false
                 Confirm = $false
